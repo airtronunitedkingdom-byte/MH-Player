@@ -96,7 +96,7 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     var seekSeconds by remember { mutableLongStateOf(10L) }
     LaunchedEffect(selected?.uri, controlsVisible, controlsInteraction, locked, trackDialog, subtitleDialog, speedMenu) {
         if (selected != null && controlsVisible && !locked && !trackDialog && !subtitleDialog && !speedMenu) {
-            delay(3500)
+            delay(5000)
             controlsVisible = false
         }
     }
@@ -212,21 +212,21 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
                 }
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     AndroidView(factory = { ctx -> PlayerView(ctx).apply { this.player = player; useController = false } }, modifier = Modifier.fillMaxSize(), update = { it.resizeMode = resizeChoice })
-                    Box(Modifier.fillMaxSize().pointerInput(locked) {
-                        detectTapGestures(onTap = {
-                            controlsVisible = !controlsVisible
-                            controlsInteraction++
-                        })
-                    })
                     if (!locked) {
                         Row(Modifier.fillMaxSize()) {
-                            Box(Modifier.weight(1f).fillMaxHeight().pointerInput(Unit) { detectVerticalDragGestures { change, amount ->
+                            Box(Modifier.weight(1f).fillMaxHeight()
+                                .pointerInput(locked) { detectTapGestures(onTap = { controlsVisible = !controlsVisible; controlsInteraction++ }) }
+                                .pointerInput(Unit) { detectVerticalDragGestures { change, amount ->
                                 change.consume(); val params = activity.window.attributes; val old = if (params.screenBrightness < 0f) 0.5f else params.screenBrightness; params.screenBrightness = (old - amount / 900f).coerceIn(0.05f, 1f); activity.window.attributes = params
                             } })
                             Box(Modifier.weight(1f).fillMaxHeight().pointerInput(Unit) { detectVerticalDragGestures { change, amount ->
                                 change.consume(); val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC); val current = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC); audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (current - amount / 70f).toInt().coerceIn(0, max), 0)
                             } })
                         }
+                    } else {
+                        Box(Modifier.fillMaxSize().pointerInput(Unit) {
+                            detectTapGestures(onTap = { controlsVisible = !controlsVisible; controlsInteraction++ })
+                        })
                     }
                 }
                 if (!locked && controlsVisible) Column(Modifier.fillMaxWidth().background(dark).padding(14.dp)) {
