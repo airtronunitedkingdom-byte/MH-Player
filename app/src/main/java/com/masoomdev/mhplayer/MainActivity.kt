@@ -102,6 +102,7 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     var splash by remember { mutableStateOf(true) }
     var exitPrompt by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
+    var infoPage by remember { mutableStateOf<String?>(null) }
     var equalizerOpen by remember { mutableStateOf(false) }
     var equalizerEnabled by remember { mutableStateOf(prefs.getBoolean("eq_enabled", false)) }
     var eqLevels by remember { mutableStateOf(List(5) { prefs.getInt("eq_band_$it", 0) }) }
@@ -256,7 +257,7 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     fun closePlayer() {
         selected?.let { prefs.edit().putLong("position_${it.uri}", player.currentPosition.coerceAtLeast(0L)).apply() }
         player.pause(); selected = null; locked = false; activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
-    BackHandler { if (exitPrompt) exitPrompt = false else if (selected != null) { if (locked) locked = false else closePlayer() } else if (settingsOpen) settingsOpen = false else if (currentFolder != null) currentFolder = null else exitPrompt = true }
+    BackHandler { if (exitPrompt) exitPrompt = false else if (selected != null) { if (locked) locked = false else closePlayer() } else if (infoPage != null) infoPage = null else if (settingsOpen) settingsOpen = false else if (currentFolder != null) currentFolder = null else exitPrompt = true }
     if (trackDialog || subtitleDialog) {
         val isAudio = trackDialog
         val trackType = if (isAudio) C.TRACK_TYPE_AUDIO else C.TRACK_TYPE_TEXT
@@ -342,6 +343,73 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
             Box(Modifier.fillMaxSize().background(dark), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.PlayCircle, null, Modifier.size(86.dp), tint = purple); Spacer(Modifier.height(12.dp)); Text("MH PLAYER", fontSize = 32.sp, color = Color.White); Text("Your media. Your device.", color = Color.LightGray) }
             }
+        } else if (infoPage != null) {
+            Column(Modifier.fillMaxSize().background(dark).padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { infoPage = null }) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White) }
+                    Text(infoPage ?: "", fontSize = 24.sp, color = Color.White)
+                }
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                    Text(
+                        when (infoPage) {
+                            "About" -> """MH Player
+Version 0.1.0
+
+Developed by MasoomDev.
+
+A lightweight offline audio and video player for files stored on your device.
+
+Features include folder browsing, playback resume, audio equalizer, gesture controls, subtitles and optional background playback.
+
+No account or sign-in is required."""
+                            "Privacy Policy" -> """MH Player Privacy Policy
+Last updated: 18 October 2026
+
+MH Player is an offline media player developed by MasoomDev.
+
+Media access: With your permission, MH Player reads video and audio files on your device to show your media library and play selected files. It does not upload your media to a server.
+
+Local data: Playback positions, equalizer settings and player preferences are saved locally on your device. You can remove this app data using Android settings or by uninstalling the app.
+
+Data collection: The current app does not contain advertising SDKs, analytics SDKs, account registration or cloud syncing. The app does not intentionally transmit personal data to the developer.
+
+Permissions: Audio and video access permissions are used for browsing and playing local files. Android audio settings access is used for audio effects.
+
+Children: MH Player is a general-purpose local media player and does not provide child-directed online services.
+
+Changes: This policy may be updated if app functionality changes. A public version will be made available on the developer's website before publication.
+
+Contact: Please use the support contact provided on the developer's website or Google Play listing."""
+                            "Terms & Conditions" -> """MH Player Terms & Conditions
+Last updated: 18 October 2026
+
+MH Player is provided as a local media playback utility.
+
+You are responsible for ensuring that you have the right to access and play your media files. MH Player does not supply, host or distribute video or audio content.
+
+Media format support depends on your device and Android decoding capabilities. Playback features and audio effects may vary by device.
+
+The app is provided as-is to the extent permitted by applicable law. Nothing in these terms excludes rights that cannot legally be excluded.
+
+For support, use the contact details on the developer website or Google Play listing."""
+                            else -> """Open Source Licenses
+
+MH Player uses open-source components including:
+
+AndroidX Media3 / ExoPlayer — Apache License 2.0
+AndroidX libraries and Jetpack Compose — Apache License 2.0
+Kotlin — Apache License 2.0
+
+Copyright and license notices for dependencies remain with their respective owners.
+
+Full license texts and dependency notices should be made available on the developer website or in the release package before publication."""
+                        },
+                        color = Color.White,
+                        lineHeight = 24.sp,
+                        modifier = Modifier.padding(top = 16.dp, bottom = 24.dp)
+                    )
+                }
+            }
         } else if (settingsOpen) {
             Column(Modifier.fillMaxSize().background(dark).padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -370,6 +438,14 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
                     }
                     Text("LIBRARY", color = purple, modifier = Modifier.padding(top = 20.dp))
                     SettingsToggle("Sort files by name", "Turn off for recent-first order", sortByName) { sortByName = it; prefs.edit().putBoolean("sort_name", it).apply() }
+                    Text("ABOUT & LEGAL", color = purple, modifier = Modifier.padding(top = 20.dp, bottom = 8.dp))
+                    listOf("About", "Privacy Policy", "Terms & Conditions", "Open Source Licenses").forEach { page ->
+                        Row(Modifier.fillMaxWidth().clickable { infoPage = page }.padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(page, color = Color.White, modifier = Modifier.weight(1f))
+                            Icon(Icons.Default.ChevronRight, null, tint = Color.LightGray)
+                        }
+                        HorizontalDivider(color = Color(0xFF30364C))
+                    }
                     Text("MH Player • Offline • ExoPlayer", color = Color.LightGray, modifier = Modifier.padding(top = 24.dp))
                 }
             }
