@@ -3,7 +3,21 @@ android {
  namespace = "com.masoomdev.mhplayer"
  compileSdk = 35
  defaultConfig { applicationId = "com.masoomdev.mhplayer"; minSdk = 24; targetSdk = 35; versionCode = 1; versionName = "1.0.0" }
- buildTypes { release { isMinifyEnabled = false } }
+ val releaseStoreFile = System.getenv("MH_KEYSTORE_PATH")
+ signingConfigs {
+  if (!releaseStoreFile.isNullOrBlank()) {
+   create("release") {
+    storeFile = file(releaseStoreFile)
+    storePassword = System.getenv("MH_KEYSTORE_PASSWORD")
+    keyAlias = System.getenv("MH_KEY_ALIAS")
+    keyPassword = System.getenv("MH_KEY_PASSWORD")
+   }
+  }
+ }
+ buildTypes { release {
+  isMinifyEnabled = false
+  if (!releaseStoreFile.isNullOrBlank()) signingConfig = signingConfigs.getByName("release")
+ } }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
  kotlinOptions { jvmTarget = "17" }
  buildFeatures { compose = true }
