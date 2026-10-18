@@ -42,6 +42,7 @@ import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 
 private val dark = Color(0xFF0D1020)
 private val purple = Color(0xFF9B72FF)
@@ -63,7 +64,7 @@ private fun scanMedia(activity: ComponentActivity): List<LocalMedia> {
     for (video in listOf(true, false)) {
         if ((video && !permissionVideo) || (!video && !permissionAudio)) continue
         val base = if (video) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-        val projection = arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.DURATION, MediaStore.MediaColumns.RELATIVE_PATH)
+        val projection = if (Build.VERSION.SDK_INT >= 29) arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.DURATION, MediaStore.MediaColumns.RELATIVE_PATH) else arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.DURATION)
         try {
             activity.contentResolver.query(base, projection, null, null, "${MediaStore.MediaColumns.DATE_ADDED} DESC")?.use { cursor ->
                 val idIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
@@ -92,6 +93,8 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     var searchText by remember { mutableStateOf("") }
     var sortByName by remember { mutableStateOf(true) }
     var libraryLoading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    fun refreshMedia() { scope.launch { libraryLoading = true; media = withContext(Dispatchers.IO) { scanMedia(activity) }; libraryLoading = false } }
     var locked by remember { mutableStateOf(false) }
     var controlsVisible by remember { mutableStateOf(true) }
     var controlsInteraction by remember { mutableIntStateOf(0) }
@@ -139,7 +142,7 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
             }
         }
     }
-    val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { media = scanMedia(activity) }
+    val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { refreshMedia() }
     LaunchedEffect(Unit) {
         delay(1200)
         splash = false
@@ -316,7 +319,7 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
                     FilterChip(selected = !showVideo, onClick = { showVideo = false; currentFolder = null }, label = { Text("Audio") })
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    TextButton(onClick = { media = scanMedia(activity) }) { Text("Refresh") }
+                    TextButton(onClick = { refreshMedia() }) { Text("Refresh") }
                     TextButton(onClick = { sortByName = !sortByName }) { Text(if (sortByName) "Name ↑" else "Recent") }
                     TextButton(onClick = { filePicker.launch(arrayOf("video/*", "audio/*", "application/octet-stream")) }) { Text("Open file") }
                 }
@@ -328,6 +331,7 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
                         Text(currentFolder ?: "", color = Color.White, maxLines = 2)
                     }
                 } else Text("Folders", color = Color.White, fontSize = 20.sp)
+                if (libraryLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
                 val filtered = media.filter { it.video == showVideo && (searchText.isBlank() || it.title.contains(searchText, true) || it.folder.contains(searchText, true)) }
                 val folders = filtered.groupBy { it.folder }
                 if (filtered.isEmpty()) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
