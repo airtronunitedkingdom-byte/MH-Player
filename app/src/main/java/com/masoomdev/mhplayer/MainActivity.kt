@@ -16,6 +16,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -84,6 +85,14 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     var selected by remember { mutableStateOf<LocalMedia?>(null) }
     var showVideo by remember { mutableStateOf(true) }
     var locked by remember { mutableStateOf(false) }
+    var controlsVisible by remember { mutableStateOf(true) }
+    var controlsInteraction by remember { mutableIntStateOf(0) }
+    LaunchedEffect(selected?.uri, controlsVisible, controlsInteraction, locked, trackDialog, subtitleDialog, speedMenu) {
+        if (selected != null && controlsVisible && !locked && !trackDialog && !subtitleDialog && !speedMenu) {
+            delay(3500)
+            controlsVisible = false
+        }
+    }
     var speedMenu by remember { mutableStateOf(false) }
     var trackDialog by remember { mutableStateOf(false) }
     var subtitleDialog by remember { mutableStateOf(false) }
@@ -137,6 +146,8 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
         if (saved > 0) player.seekTo(saved)
         player.playWhenReady = true
         locked = false
+        controlsVisible = true
+        controlsInteraction++
         activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
     LaunchedEffect(selected) {
@@ -194,13 +205,19 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
             }
         } else if (selected != null) {
             Column(Modifier.fillMaxSize().background(Color.Black)) {
-                Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (controlsVisible || locked) Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { if (locked) locked = false else closePlayer() }) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White) }
                     Text(selected?.title ?: "", Modifier.weight(1f), color = Color.White, maxLines = 1)
                     IconButton(onClick = { locked = !locked }) { Icon(if (locked) Icons.Default.Lock else Icons.Default.LockOpen, "Lock controls", tint = purple) }
                 }
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     AndroidView(factory = { ctx -> PlayerView(ctx).apply { this.player = player; useController = false } }, modifier = Modifier.fillMaxSize(), update = { it.resizeMode = resizeChoice })
+                    Box(Modifier.fillMaxSize().pointerInput(locked) {
+                        detectTapGestures(onTap = {
+                            controlsVisible = !controlsVisible
+                            controlsInteraction++
+                        })
+                    })
                     if (!locked) {
                         Row(Modifier.fillMaxSize()) {
                             Box(Modifier.weight(1f).fillMaxHeight().pointerInput(Unit) { detectVerticalDragGestures { change, amount ->
@@ -212,7 +229,7 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
                         }
                     }
                 }
-                if (!locked) Column(Modifier.fillMaxWidth().background(dark).padding(14.dp)) {
+                if (!locked && controlsVisible) Column(Modifier.fillMaxWidth().background(dark).padding(14.dp)) {
                     Slider(value = if (duration > 0) (progress.toFloat() / duration).coerceIn(0f, 1f) else 0f, onValueChange = { if (duration > 0) player.seekTo((it * duration).toLong()) })
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("${progress / 60000}:${"%02d".format(progress / 1000 % 60)}", color = Color.White); Text("${duration / 60000}:${"%02d".format(duration / 1000 % 60)}", color = Color.White) }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
@@ -229,7 +246,7 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
                         TextButton(onClick = { repeatOne = !repeatOne; player.repeatMode = if (repeatOne) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF }) { Text(if (repeatOne) "Repeat on" else "Repeat off") }
                         TextButton(onClick = { seekSeconds = if (seekSeconds == 10L) 30L else 10L }) { Text("Seek ${seekSeconds}s") }
                     }
-                } else Box(Modifier.fillMaxWidth().padding(14.dp), contentAlignment = Alignment.Center) { TextButton(onClick = { locked = false }) { Text("Unlock controls") } }
+                } else if (locked) Box(Modifier.fillMaxWidth().padding(14.dp), contentAlignment = Alignment.Center) { TextButton(onClick = { locked = false; controlsVisible = true; controlsInteraction++ }) { Text("Unlock controls") } }
             }
         } else {
             Column(Modifier.fillMaxSize().background(dark).padding(16.dp)) {
