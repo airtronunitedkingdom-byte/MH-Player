@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.ContentUris
 import android.content.pm.PackageManager
 import android.media.AudioManager
+import android.media.audiofx.Equalizer
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -90,6 +91,14 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     var splash by remember { mutableStateOf(true) }
     var exitPrompt by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
+    var equalizerOpen by remember { mutableStateOf(false) }
+    var equalizerEnabled by remember { mutableStateOf(prefs.getBoolean("eq_enabled", false)) }
+    var eqLevels by remember { mutableStateOf(List(5) { prefs.getInt("eq_band_$it", 0) }) }
+    var eqSession by remember { mutableIntStateOf(C.AUDIO_SESSION_ID_UNSET) }
+    var eqAvailable by remember { mutableStateOf(true) }
+    var eqBandCount by remember { mutableIntStateOf(5) }
+    var eqRange by remember { mutableStateOf(-1500..1500) }
+    var eqEffect by remember { mutableStateOf<Equalizer?>(null) }
     var autoHideSeconds by remember { mutableIntStateOf(prefs.getInt("auto_hide", 5)) }
     var resumePlayback by remember { mutableStateOf(prefs.getBoolean("resume", true)) }
     var autoPlay by remember { mutableStateOf(prefs.getBoolean("autoplay", true)) }
@@ -129,6 +138,38 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
         }
         player.addListener(listener)
         onDispose { player.removeListener(listener) }
+    }
+    DisposableEffect(eqSession, equalizerEnabled) {
+        var effect: Equalizer? = null
+        if (equalizerEnabled && eqSession != C.AUDIO_SESSION_ID_UNSET) {
+            try {
+                effect = Equalizer(0, eqSession)
+                eqBandCount = effect.numberOfBands.toInt()
+                val range = effect.bandLevelRange
+                eqRange = range[0].toInt()..range[1].toInt()
+                effect.enabled = true
+                eqAvailable = true
+                eqEffect = effect
+            } catch (_: Exception) {
+                eqAvailable = false
+                eqEffect = null
+                effect?.release()
+                effect = null
+            }
+        } else eqEffect = null
+        onDispose {
+            if (eqEffect === effect) eqEffect = null
+            effect?.release()
+        }
+    }
+    LaunchedEffect(eqEffect, eqLevels) {
+        val effect = eqEffect ?: return@LaunchedEffect
+        try {
+            for (band in 0 until effect.numberOfBands.toInt()) {
+                val value = eqLevels.getOrElse(band) { 0 }.coerceIn(eqRange.first, eqRange.last)
+                effect.setBandLevel(band.toShort(), value.toShort())
+            }
+        } catch (_: Exception) { eqAvailable = false }
     }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, player, backgroundPlay) {
@@ -183,6 +224,7 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     }
     LaunchedEffect(selected) {
         while (selected != null) {
+            eqSession = player.audioSessionId
             progress = player.currentPosition.coerceAtLeast(0L)
             duration = player.duration.coerceAtLeast(0L)
             playing = player.isPlaying
@@ -228,6 +270,49 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
             confirmButton = { TextButton(onClick = { trackDialog = false; subtitleDialog = false }) { Text("Close") } }
         )
     }
+    if (equalizerOpen) AlertDialog(
+        onDismissRequest = { equalizerOpen = false },
+        title = { Text("Audio Equalizer") },
+        text = {
+            Column(Modifier.heightIn(max = 450.dp).verticalScroll(rememberScrollState())) {
+                Text("Applies to video and audio played in MH Player")
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf("Flat", "Bass", "Treble").forEach { preset ->
+                        TextButton(onClick = {
+                            val n = eqBandCount.coerceAtLeast(1)
+                            val max = eqRange.last.coerceAtLeast(0)
+                            val next = List(n) { index ->
+                                when (preset) {
+                                    "Bass" -> if (index < n / 2) max / 2 else 0
+                                    "Treble" -> if (index >= n / 2) max / 2 else 0
+                                    else -> 0
+                                }
+                            }
+                            eqLevels = next
+                            next.forEachIndexed { i, v -> prefs.edit().putInt("eq_band_$i", v).apply() }
+                        }) { Text(preset) }
+                    }
+                }
+                for (band in 0 until eqBandCount.coerceIn(1, 10)) {
+                    val level = eqLevels.getOrElse(band) { 0 }
+                    val hz = try { eqEffect?.getCenterFreq(band.toShort())?.div(1000) } catch (_: Exception) { null }
+                    Text(if (hz != null) "$hz Hz: ${level / 100} dB" else "Band ${band + 1}: ${level / 100} dB")
+                    Slider(
+                        value = level.toFloat().coerceIn(eqRange.first.toFloat(), eqRange.last.toFloat()),
+                        onValueChange = { value ->
+                            val next = eqLevels.toMutableList()
+                            while (next.size <= band) next.add(0)
+                            next[band] = value.toInt()
+                            eqLevels = next
+                            prefs.edit().putInt("eq_band_$band", value.toInt()).apply()
+                        },
+                        valueRange = eqRange.first.toFloat()..eqRange.last.toFloat()
+                    )
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { equalizerOpen = false }) { Text("Done") } }
+    )
     if (exitPrompt) AlertDialog(onDismissRequest = { exitPrompt = false }, title = { Text("Exit MH Player?") }, text = { Text("Are you sure you want to close MH Player?") }, confirmButton = { TextButton(onClick = { activity.finish() }) { Text("Exit app") } }, dismissButton = { TextButton(onClick = { exitPrompt = false }) { Text("Stay in app") } })
     MaterialTheme(colorScheme = darkColorScheme(primary = purple, background = dark, surface = Color(0xFF1A2034))) {
         if (splash) {
@@ -246,6 +331,9 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
                     Slider(value = autoHideSeconds.toFloat(), onValueChange = { autoHideSeconds = it.toInt().coerceIn(3, 15); prefs.edit().putInt("auto_hide", autoHideSeconds).apply() }, valueRange = 3f..15f, steps = 11)
                     SettingsToggle("Resume playback", "Continue from saved position", resumePlayback) { resumePlayback = it; prefs.edit().putBoolean("resume", it).apply() }
                     SettingsToggle("Auto-play", "Play immediately on opening a file", autoPlay) { autoPlay = it; prefs.edit().putBoolean("autoplay", it).apply() }
+                    SettingsToggle("Equalizer", "Audio effects for music and video playback (default off)", equalizerEnabled) { equalizerEnabled = it; prefs.edit().putBoolean("eq_enabled", it).apply() }
+                    TextButton(onClick = { equalizerOpen = true }) { Text("Equalizer bands & presets") }
+                    if (equalizerEnabled && !eqAvailable) Text("Equalizer is unavailable on this device or audio output.", color = Color.Yellow)
                     SettingsToggle("Background playback", "Keep audio playing when you switch apps or lock the screen", backgroundPlay) { backgroundPlay = it; prefs.edit().putBoolean("background_play", it).apply() }
                     Text("GESTURES", color = purple, modifier = Modifier.padding(top = 20.dp))
                     SettingsToggle("Brightness swipe", "Left side vertical gesture", brightnessGesture) { brightnessGesture = it; prefs.edit().putBoolean("brightness_gesture", it).apply() }
