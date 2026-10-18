@@ -32,6 +32,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
+import androidx.media3.common.C
+import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
@@ -82,6 +85,19 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     var showVideo by remember { mutableStateOf(true) }
     var locked by remember { mutableStateOf(false) }
     var speedMenu by remember { mutableStateOf(false) }
+    var trackDialog by remember { mutableStateOf(false) }
+    var subtitleDialog by remember { mutableStateOf(false) }
+    var trackRevision by remember { mutableIntStateOf(0) }
+    var resizeChoice by remember { mutableIntStateOf(0) }
+    var repeatOne by remember { mutableStateOf(false) }
+    var seekSeconds by remember { mutableLongStateOf(10L) }
+    DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onTracksChanged(tracks: androidx.media3.common.Tracks) { trackRevision++ }
+        }
+        player.addListener(listener)
+        onDispose { player.removeListener(listener) }
+    }
     var playbackSpeed by remember { mutableFloatStateOf(1f) }
     var playing by remember { mutableStateOf(false) }
     var progress by remember { mutableLongStateOf(0L) }
@@ -134,6 +150,42 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     }
     fun closePlayer() { player.pause(); selected = null; locked = false; activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
     BackHandler { if (exitPrompt) exitPrompt = false else if (selected != null) { if (locked) locked = false else closePlayer() } else exitPrompt = true }
+    if (trackDialog || subtitleDialog) {
+        val isAudio = trackDialog
+        val trackType = if (isAudio) C.TRACK_TYPE_AUDIO else C.TRACK_TYPE_TEXT
+        val revision = trackRevision
+        val groups = player.currentTracks.groups.filter { it.type == trackType }
+        AlertDialog(
+            onDismissRequest = { trackDialog = false; subtitleDialog = false },
+            title = { Text(if (isAudio) "Audio track selection" else "Subtitle selection") },
+            text = {
+                Column(Modifier.heightIn(max = 340.dp).verticalScroll(rememberScrollState())) {
+                    TextButton(onClick = {
+                        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                            .clearOverridesOfType(trackType).setTrackTypeDisabled(trackType, !isAudio).build()
+                        trackDialog = false; subtitleDialog = false
+                    }) { Text(if (isAudio) "Automatic audio" else "Subtitles off") }
+                    groups.forEachIndexed { groupNumber, group ->
+                        for (index in 0 until group.length) {
+                            if (group.isTrackSupported(index)) {
+                                val format = group.getTrackFormat(index)
+                                val title = format.label ?: (if (isAudio) "Audio" else "Subtitle") + " ${groupNumber + 1}.${index + 1}"
+                                TextButton(onClick = {
+                                    player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                                        .clearOverridesOfType(trackType).setTrackTypeDisabled(trackType, false)
+                                        .addOverride(TrackSelectionOverride(group.mediaTrackGroup, index)).build()
+                                    trackDialog = false; subtitleDialog = false
+                                }) { Text((if (group.isTrackSelected(index)) "✓ " else "") + title + " • " + (format.language ?: "Unknown")) }
+                            }
+                        }
+                    }
+                    if (groups.isEmpty()) Text("No embedded tracks available")
+                    if (revision < 0) Text("")
+                }
+            },
+            confirmButton = { TextButton(onClick = { trackDialog = false; subtitleDialog = false }) { Text("Close") } }
+        )
+    }
     if (exitPrompt) AlertDialog(onDismissRequest = { exitPrompt = false }, title = { Text("Exit MH Player?") }, text = { Text("Are you sure you want to close MH Player?") }, confirmButton = { TextButton(onClick = { activity.finish() }) { Text("Exit app") } }, dismissButton = { TextButton(onClick = { exitPrompt = false }) { Text("Stay in app") } })
     MaterialTheme(colorScheme = darkColorScheme(primary = purple, background = dark, surface = Color(0xFF1A2034))) {
         if (splash) {
@@ -148,7 +200,7 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
                     IconButton(onClick = { locked = !locked }) { Icon(if (locked) Icons.Default.Lock else Icons.Default.LockOpen, "Lock controls", tint = purple) }
                 }
                 Box(Modifier.weight(1f).fillMaxWidth()) {
-                    AndroidView(factory = { ctx -> PlayerView(ctx).apply { this.player = player; useController = false } }, modifier = Modifier.fillMaxSize())
+                    AndroidView(factory = { ctx -> PlayerView(ctx).apply { this.player = player; useController = false } }, modifier = Modifier.fillMaxSize(), update = { it.resizeMode = resizeChoice })
                     if (!locked) {
                         Row(Modifier.fillMaxSize()) {
                             Box(Modifier.weight(1f).fillMaxHeight().pointerInput(Unit) { detectVerticalDragGestures { change, amount ->
@@ -164,11 +216,18 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
                     Slider(value = if (duration > 0) (progress.toFloat() / duration).coerceIn(0f, 1f) else 0f, onValueChange = { if (duration > 0) player.seekTo((it * duration).toLong()) })
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("${progress / 60000}:${"%02d".format(progress / 1000 % 60)}", color = Color.White); Text("${duration / 60000}:${"%02d".format(duration / 1000 % 60)}", color = Color.White) }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { player.seekTo((player.currentPosition - 10000).coerceAtLeast(0)) }) { Icon(Icons.Default.Replay10, "Back 10s", tint = Color.White) }
+                        IconButton(onClick = { player.seekTo((player.currentPosition - seekSeconds * 1000).coerceAtLeast(0)) }) { Icon(Icons.Default.Replay10, "Back 10s", tint = Color.White) }
                         IconButton(onClick = { if (player.isPlaying) player.pause() else player.play() }) { Icon(if (playing) Icons.Default.PauseCircle else Icons.Default.PlayCircle, "Play pause", Modifier.size(52.dp), tint = purple) }
-                        IconButton(onClick = { player.seekTo(player.currentPosition + 10000) }) { Icon(Icons.Default.Forward10, "Forward 10s", tint = Color.White) }
+                        IconButton(onClick = { player.seekTo(player.currentPosition + seekSeconds * 1000) }) { Icon(Icons.Default.Forward10, "Forward 10s", tint = Color.White) }
                         Box { TextButton(onClick = { speedMenu = true }) { Text("${playbackSpeed}x") }; DropdownMenu(expanded = speedMenu, onDismissRequest = { speedMenu = false }) { listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f).forEach { value -> DropdownMenuItem(text = { Text("${value}x") }, onClick = { playbackSpeed = value; player.setPlaybackSpeed(value); speedMenu = false }) } } }
-                        IconButton(onClick = { subtitlePicker.launch(arrayOf("*/*")) }) { Icon(Icons.Default.Subtitles, "Load subtitles", tint = Color.White) }
+                        IconButton(onClick = { trackDialog = true }) { Icon(Icons.Default.Audiotrack, "Audio tracks", tint = Color.White) }
+                        IconButton(onClick = { subtitleDialog = true }) { Icon(Icons.Default.Subtitles, "Subtitle tracks", tint = Color.White) }
+                    }
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+                        TextButton(onClick = { subtitlePicker.launch(arrayOf("*/*")) }) { Text("+ Subtitle") }
+                        TextButton(onClick = { resizeChoice = when (resizeChoice) { 0 -> 2; 2 -> 3; else -> 0 } }) { Text("View: " + when (resizeChoice) { 0 -> "Fit"; 2 -> "Zoom"; else -> "Stretch" }) }
+                        TextButton(onClick = { repeatOne = !repeatOne; player.repeatMode = if (repeatOne) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF }) { Text(if (repeatOne) "Repeat on" else "Repeat off") }
+                        TextButton(onClick = { seekSeconds = if (seekSeconds == 10L) 30L else 10L }) { Text("Seek ${seekSeconds}s") }
                     }
                 } else Box(Modifier.fillMaxWidth().padding(14.dp), contentAlignment = Alignment.Center) { TextButton(onClick = { locked = false }) { Text("Unlock controls") } }
             }
