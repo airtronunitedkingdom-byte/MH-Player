@@ -86,12 +86,18 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     DisposableEffect(player) { onDispose { player.release(); activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) } }
     var splash by remember { mutableStateOf(true) }
     var exitPrompt by remember { mutableStateOf(false) }
+    var settingsOpen by remember { mutableStateOf(false) }
+    var autoHideSeconds by remember { mutableIntStateOf(prefs.getInt("auto_hide", 5)) }
+    var resumePlayback by remember { mutableStateOf(prefs.getBoolean("resume", true)) }
+    var autoPlay by remember { mutableStateOf(prefs.getBoolean("autoplay", true)) }
+    var brightnessGesture by remember { mutableStateOf(prefs.getBoolean("brightness_gesture", true)) }
+    var volumeGesture by remember { mutableStateOf(prefs.getBoolean("volume_gesture", true)) }
     var media by remember { mutableStateOf<List<LocalMedia>>(emptyList()) }
     var selected by remember { mutableStateOf<LocalMedia?>(null) }
     var showVideo by remember { mutableStateOf(true) }
     var currentFolder by remember { mutableStateOf<String?>(null) }
     var searchText by remember { mutableStateOf("") }
-    var sortByName by remember { mutableStateOf(true) }
+    var sortByName by remember { mutableStateOf(prefs.getBoolean("sort_name", true)) }
     var libraryLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     fun refreshMedia() { scope.launch { libraryLoading = true; media = withContext(Dispatchers.IO) { scanMedia(activity) }; libraryLoading = false } }
@@ -106,10 +112,10 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     var trackRevision by remember { mutableIntStateOf(0) }
     var resizeChoice by remember { mutableIntStateOf(0) }
     var repeatOne by remember { mutableStateOf(false) }
-    var seekSeconds by remember { mutableLongStateOf(10L) }
-    LaunchedEffect(selected?.uri, controlsVisible, controlsInteraction, locked, trackDialog, subtitleDialog, speedMenu) {
+    var seekSeconds by remember { mutableLongStateOf(prefs.getLong("seek_seconds", 10L)) }
+    LaunchedEffect(selected?.uri, controlsVisible, controlsInteraction, locked, trackDialog, subtitleDialog, speedMenu, autoHideSeconds) {
         if (selected != null && controlsVisible && !locked && !trackDialog && !subtitleDialog && !speedMenu) {
-            delay(5000)
+            delay(autoHideSeconds * 1000L)
             controlsVisible = false
         }
     }
@@ -156,8 +162,8 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
         player.setMediaItem(MediaItem.fromUri(item.uri))
         player.prepare()
         val saved = prefs.getLong("position_${item.uri}", 0L)
-        if (saved > 0) player.seekTo(saved)
-        player.playWhenReady = true
+        if (resumePlayback && saved > 0) player.seekTo(saved)
+        player.playWhenReady = autoPlay
         locked = false
         controlsVisible = true
         controlsInteraction++
@@ -173,7 +179,7 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
         }
     }
     fun closePlayer() { player.pause(); selected = null; locked = false; activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
-    BackHandler { if (exitPrompt) exitPrompt = false else if (selected != null) { if (locked) locked = false else closePlayer() } else if (currentFolder != null) currentFolder = null else exitPrompt = true }
+    BackHandler { if (exitPrompt) exitPrompt = false else if (selected != null) { if (locked) locked = false else closePlayer() } else if (settingsOpen) settingsOpen = false else if (currentFolder != null) currentFolder = null else exitPrompt = true }
     if (trackDialog || subtitleDialog) {
         val isAudio = trackDialog
         val trackType = if (isAudio) C.TRACK_TYPE_AUDIO else C.TRACK_TYPE_TEXT
@@ -215,6 +221,33 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
         if (splash) {
             Box(Modifier.fillMaxSize().background(dark), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.PlayCircle, null, Modifier.size(86.dp), tint = purple); Spacer(Modifier.height(12.dp)); Text("MH PLAYER", fontSize = 32.sp, color = Color.White); Text("Your media. Your device.", color = Color.LightGray) }
+            }
+        } else if (settingsOpen) {
+            Column(Modifier.fillMaxSize().background(dark).padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { settingsOpen = false }) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White) }
+                    Text("Settings", fontSize = 26.sp, color = Color.White)
+                }
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                    Text("PLAYBACK", color = purple, modifier = Modifier.padding(top = 20.dp))
+                    Text("Controls auto-hide: $autoHideSeconds seconds", color = Color.White)
+                    Slider(value = autoHideSeconds.toFloat(), onValueChange = { autoHideSeconds = it.toInt().coerceIn(3, 15); prefs.edit().putInt("auto_hide", autoHideSeconds).apply() }, valueRange = 3f..15f, steps = 11)
+                    SettingsToggle("Resume playback", "Continue from saved position", resumePlayback) { resumePlayback = it; prefs.edit().putBoolean("resume", it).apply() }
+                    SettingsToggle("Auto-play", "Play immediately on opening a file", autoPlay) { autoPlay = it; prefs.edit().putBoolean("autoplay", it).apply() }
+                    Text("GESTURES", color = purple, modifier = Modifier.padding(top = 20.dp))
+                    SettingsToggle("Brightness swipe", "Left side vertical gesture", brightnessGesture) { brightnessGesture = it; prefs.edit().putBoolean("brightness_gesture", it).apply() }
+                    SettingsToggle("Volume swipe", "Right side vertical gesture", volumeGesture) { volumeGesture = it; prefs.edit().putBoolean("volume_gesture", it).apply() }
+                    Text("SEEK", color = purple, modifier = Modifier.padding(top = 20.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Skip duration", color = Color.White, modifier = Modifier.weight(1f))
+                        FilterChip(selected = seekSeconds == 10L, onClick = { seekSeconds = 10L; prefs.edit().putLong("seek_seconds", 10L).apply() }, label = { Text("10s") })
+                        Spacer(Modifier.width(8.dp))
+                        FilterChip(selected = seekSeconds == 30L, onClick = { seekSeconds = 30L; prefs.edit().putLong("seek_seconds", 30L).apply() }, label = { Text("30s") })
+                    }
+                    Text("LIBRARY", color = purple, modifier = Modifier.padding(top = 20.dp))
+                    SettingsToggle("Sort files by name", "Turn off for recent-first order", sortByName) { sortByName = it; prefs.edit().putBoolean("sort_name", it).apply() }
+                    Text("MH Player • Offline • ExoPlayer", color = Color.LightGray, modifier = Modifier.padding(top = 24.dp))
+                }
             }
         } else if (selected != null) {
             Column(Modifier.fillMaxSize().background(Color.Black)) {
@@ -258,7 +291,7 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
                                 onDragEnd = { gestureLevel = -1f },
                                 onDragCancel = { gestureLevel = -1f },
                                 onDrag = { change, dragAmount ->
-                                    if (!locked && kotlin.math.abs(dragAmount.y) >= kotlin.math.abs(dragAmount.x)) {
+                                    if (!locked && (if (brightnessSide) brightnessGesture else volumeGesture) && kotlin.math.abs(dragAmount.y) >= kotlin.math.abs(dragAmount.x)) {
                                         change.consume()
                                         accumulated -= dragAmount.y / size.height.coerceAtLeast(1).toFloat()
                                         val level = (startLevel + accumulated * 1.5f).coerceIn(0f, 1f)
@@ -310,7 +343,10 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
         } else {
             Column(Modifier.fillMaxSize().background(dark).padding(16.dp)) {
                 Spacer(Modifier.height(12.dp))
-                Text("MH Player", fontSize = 30.sp, color = Color.White)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("MH Player", fontSize = 30.sp, color = Color.White, modifier = Modifier.weight(1f))
+                    IconButton(onClick = { settingsOpen = true }) { Icon(Icons.Default.Settings, "Settings", tint = purple) }
+                }
                 Text("Offline video & audio", color = Color.LightGray)
                 Spacer(Modifier.height(20.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -370,5 +406,16 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SettingsToggle(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, color = Color.White)
+            Text(subtitle, color = Color.LightGray, fontSize = 12.sp)
+        }
+        Switch(checked = checked, onCheckedChange = onChange)
     }
 }
