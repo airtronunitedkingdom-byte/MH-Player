@@ -42,6 +42,8 @@ import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
@@ -86,7 +88,16 @@ private fun scanMedia(activity: ComponentActivity): List<LocalMedia> {
 private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     val context = LocalContext.current
     val prefs = remember { activity.getSharedPreferences("mh_player", 0) }
-    val player = remember { ExoPlayer.Builder(context).build() }
+    val player = remember {
+        val renderers = DefaultRenderersFactory(context)
+            .setEnableDecoderFallback(true)
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(15_000, 50_000, 1_000, 2_000)
+            .build()
+        ExoPlayer.Builder(context, renderers)
+            .setLoadControl(loadControl)
+            .build()
+    }
     DisposableEffect(player) { onDispose { player.release(); activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) } }
     var splash by remember { mutableStateOf(true) }
     var exitPrompt by remember { mutableStateOf(false) }
@@ -222,17 +233,29 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
         controlsInteraction++
         activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
-    LaunchedEffect(selected) {
-        while (selected != null) {
-            eqSession = player.audioSessionId
-            progress = player.currentPosition.coerceAtLeast(0L)
-            duration = player.duration.coerceAtLeast(0L)
-            playing = player.isPlaying
-            if (progress > 0) prefs.edit().putLong("position_${selected?.uri}", progress).apply()
-            delay(400)
+    LaunchedEffect(selected?.uri) {
+        val current = selected ?: return@LaunchedEffect
+        var lastSavedAt = 0L
+        while (selected?.uri == current.uri) {
+            val session = player.audioSessionId
+            if (eqSession != session) eqSession = session
+            val nextProgress = player.currentPosition.coerceAtLeast(0L)
+            val nextDuration = player.duration.coerceAtLeast(0L)
+            val nextPlaying = player.isPlaying
+            if (progress != nextProgress) progress = nextProgress
+            if (duration != nextDuration) duration = nextDuration
+            if (playing != nextPlaying) playing = nextPlaying
+            val now = android.os.SystemClock.elapsedRealtime()
+            if (nextProgress > 0 && now - lastSavedAt >= 5000L) {
+                prefs.edit().putLong("position_${current.uri}", nextProgress).apply()
+                lastSavedAt = now
+            }
+            delay(750)
         }
     }
-    fun closePlayer() { player.pause(); selected = null; locked = false; activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+    fun closePlayer() {
+        selected?.let { prefs.edit().putLong("position_${it.uri}", player.currentPosition.coerceAtLeast(0L)).apply() }
+        player.pause(); selected = null; locked = false; activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
     BackHandler { if (exitPrompt) exitPrompt = false else if (selected != null) { if (locked) locked = false else closePlayer() } else if (settingsOpen) settingsOpen = false else if (currentFolder != null) currentFolder = null else exitPrompt = true }
     if (trackDialog || subtitleDialog) {
         val isAudio = trackDialog
