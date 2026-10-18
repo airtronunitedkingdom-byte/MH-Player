@@ -40,10 +40,12 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private val dark = Color(0xFF0D1020)
 private val purple = Color(0xFF9B72FF)
-private data class LocalMedia(val title: String, val uri: Uri, val video: Boolean, val duration: Long)
+private data class LocalMedia(val title: String, val uri: Uri, val video: Boolean, val duration: Long, val folder: String)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -61,13 +63,14 @@ private fun scanMedia(activity: ComponentActivity): List<LocalMedia> {
     for (video in listOf(true, false)) {
         if ((video && !permissionVideo) || (!video && !permissionAudio)) continue
         val base = if (video) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-        val projection = arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.DURATION)
+        val projection = arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.DURATION, MediaStore.MediaColumns.RELATIVE_PATH)
         try {
             activity.contentResolver.query(base, projection, null, null, "${MediaStore.MediaColumns.DATE_ADDED} DESC")?.use { cursor ->
                 val idIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
                 val nameIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
                 val durationIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DURATION)
-                while (cursor.moveToNext()) output.add(LocalMedia(cursor.getString(nameIndex) ?: "Unknown", ContentUris.withAppendedId(base, cursor.getLong(idIndex)), video, cursor.getLong(durationIndex)))
+                val folderIndex = cursor.getColumnIndex(MediaStore.MediaColumns.RELATIVE_PATH)
+                while (cursor.moveToNext()) output.add(LocalMedia(cursor.getString(nameIndex) ?: "Unknown", ContentUris.withAppendedId(base, cursor.getLong(idIndex)), video, cursor.getLong(durationIndex), if (folderIndex >= 0) (cursor.getString(folderIndex) ?: "Other").trimEnd('/') else "Device storage"))
             }
         } catch (_: Exception) { }
     }
@@ -85,6 +88,10 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     var media by remember { mutableStateOf<List<LocalMedia>>(emptyList()) }
     var selected by remember { mutableStateOf<LocalMedia?>(null) }
     var showVideo by remember { mutableStateOf(true) }
+    var currentFolder by remember { mutableStateOf<String?>(null) }
+    var searchText by remember { mutableStateOf("") }
+    var sortByName by remember { mutableStateOf(true) }
+    var libraryLoading by remember { mutableStateOf(false) }
     var locked by remember { mutableStateOf(false) }
     var controlsVisible by remember { mutableStateOf(true) }
     var controlsInteraction by remember { mutableIntStateOf(0) }
@@ -116,7 +123,7 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     var duration by remember { mutableLongStateOf(0L) }
     val audioManager = remember { context.getSystemService(AudioManager::class.java) }
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) selected = LocalMedia(uri.lastPathSegment ?: "Opened file", uri, true, 0L)
+        if (uri != null) selected = LocalMedia(uri.lastPathSegment ?: "Opened file", uri, true, 0L, "Opened files")
     }
     val subtitlePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -138,8 +145,8 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
         splash = false
         val needed = if (Build.VERSION.SDK_INT >= 33) arrayOf(Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.READ_MEDIA_AUDIO) else arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
         val missing = needed.filter { activity.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
-        if (missing.isNotEmpty()) permissions.launch(missing.toTypedArray()) else media = scanMedia(activity)
-        if (initialUri != null) selected = LocalMedia("Opened file", initialUri, true, 0L)
+        if (missing.isNotEmpty()) permissions.launch(missing.toTypedArray()) else media = withContext(Dispatchers.IO) { scanMedia(activity) }
+        if (initialUri != null) selected = LocalMedia("Opened file", initialUri, true, 0L, "Opened files")
     }
     LaunchedEffect(selected?.uri) {
         val item = selected ?: return@LaunchedEffect
@@ -163,7 +170,7 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
         }
     }
     fun closePlayer() { player.pause(); selected = null; locked = false; activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
-    BackHandler { if (exitPrompt) exitPrompt = false else if (selected != null) { if (locked) locked = false else closePlayer() } else exitPrompt = true }
+    BackHandler { if (exitPrompt) exitPrompt = false else if (selected != null) { if (locked) locked = false else closePlayer() } else if (currentFolder != null) currentFolder = null else exitPrompt = true }
     if (trackDialog || subtitleDialog) {
         val isAudio = trackDialog
         val trackType = if (isAudio) C.TRACK_TYPE_AUDIO else C.TRACK_TYPE_TEXT
@@ -303,19 +310,60 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
                 Text("MH Player", fontSize = 30.sp, color = Color.White)
                 Text("Offline video & audio", color = Color.LightGray)
                 Spacer(Modifier.height(20.dp))
-                Row { FilterChip(selected = showVideo, onClick = { showVideo = true }, label = { Text("Videos") }); Spacer(Modifier.width(12.dp)); FilterChip(selected = !showVideo, onClick = { showVideo = false }, label = { Text("Audio") }) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    FilterChip(selected = showVideo, onClick = { showVideo = true; currentFolder = null }, label = { Text("Videos") })
+                    Spacer(Modifier.width(12.dp))
+                    FilterChip(selected = !showVideo, onClick = { showVideo = false; currentFolder = null }, label = { Text("Audio") })
+                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    TextButton(onClick = { media = scanMedia(activity) }) { Text("Refresh library") }
+                    TextButton(onClick = { media = scanMedia(activity) }) { Text("Refresh") }
+                    TextButton(onClick = { sortByName = !sortByName }) { Text(if (sortByName) "Name ↑" else "Recent") }
                     TextButton(onClick = { filePicker.launch(arrayOf("video/*", "audio/*", "application/octet-stream")) }) { Text("Open file") }
                 }
-                val shown = media.filter { it.video == showVideo }
-                if (shown.isEmpty()) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { Text("No media found. Tap Open file to browse.", color = Color.LightGray) }
-                else LazyColumn { items(shown) { item ->
-                    Row(Modifier.fillMaxWidth().clickable { selected = item }.padding(vertical = 15.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(if (item.video) Icons.Default.Movie else Icons.Default.MusicNote, null, tint = purple)
-                        Spacer(Modifier.width(14.dp)); Text(item.title, color = Color.White, maxLines = 2)
-                    }; HorizontalDivider(color = Color(0xFF30364C))
-                } }
+                OutlinedTextField(value = searchText, onValueChange = { searchText = it }, label = { Text("Search folders or files") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
+                if (currentFolder != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { currentFolder = null }) { Icon(Icons.Default.ArrowBack, "Folders", tint = purple) }
+                        Text(currentFolder ?: "", color = Color.White, maxLines = 2)
+                    }
+                } else Text("Folders", color = Color.White, fontSize = 20.sp)
+                val filtered = media.filter { it.video == showVideo && (searchText.isBlank() || it.title.contains(searchText, true) || it.folder.contains(searchText, true)) }
+                val folders = filtered.groupBy { it.folder }
+                if (filtered.isEmpty()) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Text("No media found. Tap Open file to browse.", color = Color.LightGray)
+                } else if (currentFolder == null) {
+                    LazyColumn {
+                        items(folders.entries.sortedBy { it.key }) { folder ->
+                            Row(Modifier.fillMaxWidth().clickable { currentFolder = folder.key }.padding(vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Folder, null, tint = purple, modifier = Modifier.size(36.dp))
+                                Spacer(Modifier.width(14.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(folder.key.substringAfterLast('/').ifBlank { "Device storage" }, color = Color.White, fontSize = 17.sp)
+                                    Text(folder.key + " • " + folder.value.size + " files", color = Color.LightGray, fontSize = 12.sp, maxLines = 2)
+                                }
+                                Icon(Icons.Default.ChevronRight, null, tint = Color.LightGray)
+                            }
+                            HorizontalDivider(color = Color(0xFF30364C))
+                        }
+                    }
+                } else {
+                    val entries = filtered.filter { it.folder == currentFolder }
+                    val sorted = if (sortByName) entries.sortedBy { it.title.lowercase() } else entries
+                    LazyColumn {
+                        items(sorted, key = { it.uri.toString() }) { item ->
+                            Row(Modifier.fillMaxWidth().clickable { selected = item }.padding(vertical = 15.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(if (item.video) Icons.Default.Movie else Icons.Default.MusicNote, null, tint = purple)
+                                Spacer(Modifier.width(14.dp))
+                                Column {
+                                    Text(item.title, color = Color.White, maxLines = 2)
+                                    Text("${item.duration / 60000} min", color = Color.LightGray, fontSize = 12.sp)
+                                }
+                            }
+                            HorizontalDivider(color = Color(0xFF30364C))
+                        }
+                    }
+                }
             }
         }
     }
