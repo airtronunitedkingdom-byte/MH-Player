@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.media.audiofx.Equalizer
 import android.net.Uri
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
@@ -353,7 +354,7 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
                     Text(
                         when (infoPage) {
                             "About" -> """MH Player
-Version 0.1.0
+Version 1.0.0
 
 Developed by MasoomDev.
 
@@ -439,6 +440,14 @@ Full license texts and dependency notices should be made available on the develo
                     Text("LIBRARY", color = purple, modifier = Modifier.padding(top = 20.dp))
                     SettingsToggle("Sort files by name", "Turn off for recent-first order", sortByName) { sortByName = it; prefs.edit().putBoolean("sort_name", it).apply() }
                     Text("ABOUT & LEGAL", color = purple, modifier = Modifier.padding(top = 20.dp, bottom = 8.dp))
+                    TextButton(onClick = {
+                        val url = "https://masoomdev-website.vercel.app/apps/mh-player/privacy/"
+                        try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) {}
+                    }) { Text("View public Privacy Policy ↗") }
+                    TextButton(onClick = {
+                        val url = "https://masoomdev-website.vercel.app/apps/mh-player/"
+                        try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) {}
+                    }) { Text("MH Player website ↗") }
                     listOf("About", "Privacy Policy", "Terms & Conditions", "Open Source Licenses").forEach { page ->
                         Row(Modifier.fillMaxWidth().clickable { infoPage = page }.padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(page, color = Color.White, modifier = Modifier.weight(1f))
