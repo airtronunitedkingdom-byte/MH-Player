@@ -43,6 +43,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
+import org.videolan.libvlc.LibVLC
+import org.videolan.libvlc.Media as VlcMedia
+import org.videolan.libvlc.MediaPlayer as VlcPlayer
+import org.videolan.libvlc.util.VLCVideoLayout
 
 private val dark = Color(0xFF0D1020)
 private val purple = Color(0xFF9B72FF)
@@ -89,6 +93,7 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     var media by remember { mutableStateOf<List<LocalMedia>>(emptyList()) }
     var selected by remember { mutableStateOf<LocalMedia?>(null) }
     var showVideo by remember { mutableStateOf(true) }
+    var useVlc by remember { mutableStateOf(prefs.getBoolean("vlc_engine", false)) }
     var currentFolder by remember { mutableStateOf<String?>(null) }
     var searchText by remember { mutableStateOf("") }
     var sortByName by remember { mutableStateOf(true) }
@@ -153,6 +158,7 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     }
     LaunchedEffect(selected?.uri) {
         val item = selected ?: return@LaunchedEffect
+        if (useVlc) { player.stop(); locked = false; controlsVisible = true; controlsInteraction++; return@LaunchedEffect }
         player.setMediaItem(MediaItem.fromUri(item.uri))
         player.prepare()
         val saved = prefs.getLong("position_${item.uri}", 0L)
@@ -216,6 +222,8 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
             Box(Modifier.fillMaxSize().background(dark), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.PlayCircle, null, Modifier.size(86.dp), tint = purple); Spacer(Modifier.height(12.dp)); Text("MH PLAYER", fontSize = 32.sp, color = Color.White); Text("Your media. Your device.", color = Color.LightGray) }
             }
+        } else if (selected != null && useVlc) {
+            VlcPlayback(activity, selected!!, onBack = { selected = null })
         } else if (selected != null) {
             Column(Modifier.fillMaxSize().background(Color.Black)) {
                 if (controlsVisible || locked) Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -314,6 +322,13 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
                 Text("Offline video & audio", color = Color.LightGray)
                 Spacer(Modifier.height(20.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Engine:", color = Color.LightGray)
+                    Spacer(Modifier.width(8.dp))
+                    FilterChip(selected = !useVlc, onClick = { useVlc = false; prefs.edit().putBoolean("vlc_engine", false).apply() }, label = { Text("Exo") })
+                    Spacer(Modifier.width(8.dp))
+                    FilterChip(selected = useVlc, onClick = { useVlc = true; prefs.edit().putBoolean("vlc_engine", true).apply() }, label = { Text("VLC") })
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     FilterChip(selected = showVideo, onClick = { showVideo = true; currentFolder = null }, label = { Text("Videos") })
                     Spacer(Modifier.width(12.dp))
                     FilterChip(selected = !showVideo, onClick = { showVideo = false; currentFolder = null }, label = { Text("Audio") })
@@ -369,6 +384,66 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun VlcPlayback(activity: ComponentActivity, item: LocalMedia, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val lib = remember { LibVLC(context, arrayListOf("--no-drop-late-frames")) }
+    val vlc = remember { VlcPlayer(lib) }
+    var playing by remember { mutableStateOf(true) }
+    var position by remember { mutableFloatStateOf(0f) }
+    var length by remember { mutableLongStateOf(0L) }
+    var showControls by remember { mutableStateOf(true) }
+    DisposableEffect(vlc, item.uri) {
+        val media = VlcMedia(lib, item.uri)
+        vlc.media = media
+        media.release()
+        vlc.play()
+        activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose {
+            vlc.stop()
+            vlc.detachViews()
+            vlc.release()
+            lib.release()
+            activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+    LaunchedEffect(item.uri) {
+        while (true) {
+            playing = vlc.isPlaying
+            length = vlc.length.coerceAtLeast(0L)
+            position = vlc.position.coerceIn(0f, 1f)
+            delay(500)
+        }
+    }
+    LaunchedEffect(showControls) { if (showControls) { delay(5000); showControls = false } }
+    Column(Modifier.fillMaxSize().background(Color.Black)) {
+        if (showControls) Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White) }
+            Text(item.title, color = Color.White, maxLines = 1, modifier = Modifier.weight(1f))
+            Text("VLC", color = purple, modifier = Modifier.padding(12.dp))
+        }
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            AndroidView(factory = { ctx ->
+                VLCVideoLayout(ctx).also { vlc.attachViews(it, null, false, false) }
+            }, modifier = Modifier.fillMaxSize())
+            Box(Modifier.fillMaxSize().pointerInput(Unit) {
+                detectTapGestures { showControls = !showControls }
+            })
+        }
+        if (showControls) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { vlc.time = (vlc.time - 10000L).coerceAtLeast(0L) }) { Icon(Icons.Default.Replay10, "Back 10s", tint = Color.White) }
+                IconButton(onClick = { if (vlc.isPlaying) vlc.pause() else vlc.play(); playing = vlc.isPlaying }) {
+                    Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, "Play pause", tint = purple)
+                }
+                IconButton(onClick = { vlc.time += 10000L }) { Icon(Icons.Default.Forward10, "Forward 10s", tint = Color.White) }
+                Slider(value = position, onValueChange = { position = it; if (vlc.isSeekable) vlc.position = it }, modifier = Modifier.weight(1f))
+            }
+            Text("${vlc.time.coerceAtLeast(0L) / 1000}s / ${length / 1000}s", color = Color.LightGray, modifier = Modifier.padding(12.dp))
         }
     }
 }
