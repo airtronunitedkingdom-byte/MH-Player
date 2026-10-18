@@ -25,6 +25,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -90,6 +93,7 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     var autoHideSeconds by remember { mutableIntStateOf(prefs.getInt("auto_hide", 5)) }
     var resumePlayback by remember { mutableStateOf(prefs.getBoolean("resume", true)) }
     var autoPlay by remember { mutableStateOf(prefs.getBoolean("autoplay", true)) }
+    var backgroundPlay by remember { mutableStateOf(prefs.getBoolean("background_play", false)) }
     var brightnessGesture by remember { mutableStateOf(prefs.getBoolean("brightness_gesture", true)) }
     var volumeGesture by remember { mutableStateOf(prefs.getBoolean("volume_gesture", true)) }
     var media by remember { mutableStateOf<List<LocalMedia>>(emptyList()) }
@@ -125,6 +129,14 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
         }
         player.addListener(listener)
         onDispose { player.removeListener(listener) }
+    }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, player, backgroundPlay) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP && !backgroundPlay) player.pause()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     var playbackSpeed by remember { mutableFloatStateOf(1f) }
     var playing by remember { mutableStateOf(false) }
@@ -234,6 +246,7 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
                     Slider(value = autoHideSeconds.toFloat(), onValueChange = { autoHideSeconds = it.toInt().coerceIn(3, 15); prefs.edit().putInt("auto_hide", autoHideSeconds).apply() }, valueRange = 3f..15f, steps = 11)
                     SettingsToggle("Resume playback", "Continue from saved position", resumePlayback) { resumePlayback = it; prefs.edit().putBoolean("resume", it).apply() }
                     SettingsToggle("Auto-play", "Play immediately on opening a file", autoPlay) { autoPlay = it; prefs.edit().putBoolean("autoplay", it).apply() }
+                    SettingsToggle("Background playback", "Keep audio playing when you switch apps or lock the screen", backgroundPlay) { backgroundPlay = it; prefs.edit().putBoolean("background_play", it).apply() }
                     Text("GESTURES", color = purple, modifier = Modifier.padding(top = 20.dp))
                     SettingsToggle("Brightness swipe", "Left side vertical gesture", brightnessGesture) { brightnessGesture = it; prefs.edit().putBoolean("brightness_gesture", it).apply() }
                     SettingsToggle("Volume swipe", "Right side vertical gesture", volumeGesture) { volumeGesture = it; prefs.edit().putBoolean("volume_gesture", it).apply() }
