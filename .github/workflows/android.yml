@@ -20,3 +20,36 @@ jobs:
         with:
           name: MH-Player-debug-APK
           path: app/build/outputs/apk/debug/app-debug.apk
+  release-aab:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Validate signing secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.MH_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.MH_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.MH_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.MH_KEY_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE_BASE64" && test -n "$KEYSTORE_PASSWORD" && test -n "$KEY_ALIAS" && test -n "$KEY_PASSWORD" || { echo "Missing MH Player signing secrets"; exit 1; }
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/mh-release.jks"
+          echo "MH_KEYSTORE_PATH=$RUNNER_TEMP/mh-release.jks" >> "$GITHUB_ENV"
+      - name: Build signed release AAB
+        env:
+          MH_KEYSTORE_PASSWORD: ${{ secrets.MH_KEYSTORE_PASSWORD }}
+          MH_KEY_ALIAS: ${{ secrets.MH_KEY_ALIAS }}
+          MH_KEY_PASSWORD: ${{ secrets.MH_KEY_PASSWORD }}
+        run: gradle :app:bundleRelease --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MH-Player-1.0.0-signed-AAB
+          path: app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
