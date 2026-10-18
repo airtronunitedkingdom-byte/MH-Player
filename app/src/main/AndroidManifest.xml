@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+ <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+ <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
+ <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
+ <application android:allowBackup="true" android:label="MH Player" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:icon="@drawable/ic_launcher" android:usesCleartextTraffic="false">
+  <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="unspecified">
+   <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+   <intent-filter><action android:name="android.intent.action.VIEW"/><category android:name="android.intent.category.DEFAULT"/><category android:name="android.intent.category.BROWSABLE"/><data android:scheme="content"/><data android:scheme="file"/><data android:mimeType="video/*"/><data android:mimeType="audio/*"/></intent-filter>
+  </activity>
+ </application>
+</manifest>
