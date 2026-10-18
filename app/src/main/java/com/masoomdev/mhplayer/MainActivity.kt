@@ -17,6 +17,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -87,6 +89,8 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     var locked by remember { mutableStateOf(false) }
     var controlsVisible by remember { mutableStateOf(true) }
     var controlsInteraction by remember { mutableIntStateOf(0) }
+    var gestureLevel by remember { mutableFloatStateOf(-1f) }
+    var gestureBrightness by remember { mutableStateOf(true) }
     var speedMenu by remember { mutableStateOf(false) }
     var trackDialog by remember { mutableStateOf(false) }
     var subtitleDialog by remember { mutableStateOf(false) }
@@ -212,21 +216,67 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
                 }
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     AndroidView(factory = { ctx -> PlayerView(ctx).apply { this.player = player; useController = false } }, modifier = Modifier.fillMaxSize(), update = { it.resizeMode = resizeChoice })
-                    if (!locked) {
-                        Row(Modifier.fillMaxSize()) {
-                            Box(Modifier.weight(1f).fillMaxHeight()
-                                .pointerInput(locked) { detectTapGestures(onTap = { controlsVisible = !controlsVisible; controlsInteraction++ }) }
-                                .pointerInput(Unit) { detectVerticalDragGestures { change, amount ->
-                                change.consume(); val params = activity.window.attributes; val old = if (params.screenBrightness < 0f) 0.5f else params.screenBrightness; params.screenBrightness = (old - amount / 900f).coerceIn(0.05f, 1f); activity.window.attributes = params
-                            } })
-                            Box(Modifier.weight(1f).fillMaxHeight().pointerInput(Unit) { detectVerticalDragGestures { change, amount ->
-                                change.consume(); val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC); val current = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC); audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (current - amount / 70f).toInt().coerceIn(0, max), 0)
-                            } })
+                    Box(Modifier.fillMaxSize()
+                        .pointerInput(locked) {
+                            detectTapGestures(onTap = {
+                                if (!locked) {
+                                    controlsVisible = !controlsVisible
+                                    controlsInteraction++
+                                }
+                            })
                         }
-                    } else {
-                        Box(Modifier.fillMaxSize().pointerInput(Unit) {
-                            detectTapGestures(onTap = { controlsVisible = !controlsVisible; controlsInteraction++ })
-                        })
+                        .pointerInput(locked) {
+                            var startX = 0f
+                            var startLevel = 0f
+                            var accumulated = 0f
+                            var brightnessSide = true
+                            detectDragGestures(
+                                onDragStart = { offset ->
+                                    startX = offset.x
+                                    brightnessSide = startX < size.width / 2f
+                                    accumulated = 0f
+                                    startLevel = if (brightnessSide) {
+                                        val value = activity.window.attributes.screenBrightness
+                                        if (value < 0f) 0.5f else value
+                                    } else {
+                                        val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+                                        audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / max
+                                    }
+                                    gestureBrightness = brightnessSide
+                                    gestureLevel = startLevel
+                                    controlsInteraction++
+                                },
+                                onDragEnd = { gestureLevel = -1f },
+                                onDragCancel = { gestureLevel = -1f },
+                                onDrag = { change, dragAmount ->
+                                    if (!locked && kotlin.math.abs(dragAmount.y) >= kotlin.math.abs(dragAmount.x)) {
+                                        change.consume()
+                                        accumulated -= dragAmount.y / size.height.coerceAtLeast(1).toFloat()
+                                        val level = (startLevel + accumulated * 1.5f).coerceIn(0f, 1f)
+                                        gestureLevel = level
+                                        if (brightnessSide) {
+                                            val params = activity.window.attributes
+                                            params.screenBrightness = level.coerceAtLeast(0.01f)
+                                            activity.window.attributes = params
+                                        } else {
+                                            val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                                            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (level * max).toInt().coerceIn(0, max), 0)
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    )
+                    if (gestureLevel >= 0f && !locked) {
+                        Surface(Modifier.align(Alignment.Center), color = Color(0xDD151827), shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp)) {
+                            Column(Modifier.padding(horizontal = 24.dp, vertical = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(if (gestureBrightness) Icons.Default.Brightness6 else Icons.Default.VolumeUp, null, tint = purple)
+                                Spacer(Modifier.height(8.dp))
+                                Text((if (gestureBrightness) "Brightness " else "Volume ") + "${(gestureLevel * 100).toInt()}%", color = Color.White)
+                                Spacer(Modifier.height(8.dp))
+                                LinearProgressIndicator(progress = { gestureLevel }, modifier = Modifier.width(130.dp))
+                            }
+                        }
                     }
                 }
                 if (!locked && controlsVisible) Column(Modifier.fillMaxWidth().background(dark).padding(14.dp)) {
