@@ -87,12 +87,6 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     var locked by remember { mutableStateOf(false) }
     var controlsVisible by remember { mutableStateOf(true) }
     var controlsInteraction by remember { mutableIntStateOf(0) }
-    LaunchedEffect(selected?.uri, controlsVisible, controlsInteraction, locked, trackDialog, subtitleDialog, speedMenu) {
-        if (selected != null && controlsVisible && !locked && !trackDialog && !subtitleDialog && !speedMenu) {
-            delay(3500)
-            controlsVisible = false
-        }
-    }
     var speedMenu by remember { mutableStateOf(false) }
     var trackDialog by remember { mutableStateOf(false) }
     var subtitleDialog by remember { mutableStateOf(false) }
@@ -100,6 +94,12 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     var resizeChoice by remember { mutableIntStateOf(0) }
     var repeatOne by remember { mutableStateOf(false) }
     var seekSeconds by remember { mutableLongStateOf(10L) }
+    LaunchedEffect(selected?.uri, controlsVisible, controlsInteraction, locked, trackDialog, subtitleDialog, speedMenu) {
+        if (selected != null && controlsVisible && !locked && !trackDialog && !subtitleDialog && !speedMenu) {
+            delay(3500)
+            controlsVisible = false
+        }
+    }
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) { trackRevision++ }
