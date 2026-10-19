@@ -150,6 +150,8 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     var floatingResume by remember { mutableStateOf(prefs.getBoolean("list_floating_resume", false)) }
     var newTagDays by remember { mutableIntStateOf(prefs.getInt("list_new_days", 7)) }
     var includeAndroidMedia by remember { mutableStateOf(prefs.getBoolean("include_android_media", false)) }
+    var videoLayout by remember { mutableStateOf(prefs.getString("video_layout", "Classic") ?: "Classic") }
+    var audioLayout by remember { mutableStateOf(prefs.getString("audio_layout", "Classic") ?: "Classic") }
     var themeChoice by remember { mutableStateOf(prefs.getString("ui_theme", "Purple") ?: "Purple") }
     val dark = when (themeChoice) { "White" -> Color(0xFFF8F9FD); "Dark" -> Color(0xFF111318); else -> Color(0xFF0D1020) }
     val purple = when (themeChoice) { "White" -> Color(0xFF4259A7); "Dark" -> Color(0xFF8EA3FF); else -> Color(0xFF9B72FF) }
@@ -582,6 +584,24 @@ Full license texts and dependency notices should be made available on the develo
                             }, label = { Text(option) })
                         }
                     }
+                    Text("PLAYER LAYOUTS", color = purple, modifier = Modifier.padding(top = 20.dp))
+                    Text("Video player", color = foreground, modifier = Modifier.padding(top = 8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("Classic", "Modern", "Cinema").forEach { option ->
+                            FilterChip(selected = videoLayout == option, onClick = {
+                                videoLayout = option; prefs.edit().putString("video_layout", option).apply()
+                            }, label = { Text(option) })
+                        }
+                    }
+                    Text("Audio player", color = foreground, modifier = Modifier.padding(top = 12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("Classic", "Modern", "Studio").forEach { option ->
+                            FilterChip(selected = audioLayout == option, onClick = {
+                                audioLayout = option; prefs.edit().putString("audio_layout", option).apply()
+                            }, label = { Text(option) })
+                        }
+                    }
+                    Text("Audio and video layouts are saved independently.", color = secondaryText, fontSize = 12.sp)
                     Text("LIBRARY", color = purple, modifier = Modifier.padding(top = 20.dp))
                     Row(Modifier.fillMaxWidth().clickable { listSettingsOpen = true }.padding(vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically) {
@@ -609,9 +629,46 @@ Full license texts and dependency notices should be made available on the develo
                 }
             }
         } else if (selected != null) {
-            Box(Modifier.fillMaxSize().background(Color.Black)) {
+            val audioMode = selected?.video == false
+            val activeLayout = if (audioMode) audioLayout else videoLayout
+            val overlayText = Color.White
+            Box(Modifier.fillMaxSize().background(if (audioMode) dark else Color.Black)) {
                 Box(Modifier.fillMaxSize()) {
-                    AndroidView(factory = { ctx -> PlayerView(ctx).apply { this.player = player; useController = false } }, modifier = Modifier.fillMaxSize(), update = { it.resizeMode = resizeChoice })
+                    if (!audioMode) {
+                        AndroidView(factory = { ctx -> PlayerView(ctx).apply { this.player = player; useController = false } }, modifier = Modifier.fillMaxSize(), update = { it.resizeMode = resizeChoice })
+                    } else {
+                        Column(
+                            Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 85.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            if (activeLayout == "Studio") {
+                                Text("STUDIO", color = purple, fontSize = 14.sp)
+                                Spacer(Modifier.height(18.dp))
+                                Row(Modifier.fillMaxWidth().height(100.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                                    val bars = listOf(20, 48, 32, 78, 56, 94, 45, 68, 35, 82, 52, 25, 60, 40, 72)
+                                    bars.forEach { height ->
+                                        Box(Modifier.width(6.dp).height(height.dp).background(purple, androidx.compose.foundation.shape.RoundedCornerShape(5.dp)))
+                                    }
+                                }
+                            } else {
+                                Surface(
+                                    modifier = Modifier.size(if (activeLayout == "Modern") 200.dp else 140.dp),
+                                    color = if (activeLayout == "Modern") purple.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surface,
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(if (activeLayout == "Modern") 32.dp else 18.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(if (activeLayout == "Modern") Icons.Default.Album else Icons.Default.MusicNote,
+                                            null, Modifier.size(90.dp), tint = purple)
+                                    }
+                                }
+                            }
+                            Spacer(Modifier.height(22.dp))
+                            Text(selected?.title ?: "Audio", color = foreground, fontSize = if (activeLayout == "Modern") 24.sp else 20.sp, maxLines = 2)
+                            Text(if (activeLayout == "Studio") "Audio playback • Equalizer available in Settings" else "MH Player • Offline audio",
+                                color = secondaryText, fontSize = 12.sp)
+                        }
+                    }
                     if (!pipActive) Box(Modifier.fillMaxSize()
                         .pointerInput(locked) {
                             detectTapGestures(onTap = {
@@ -663,7 +720,7 @@ Full license texts and dependency notices should be made available on the develo
                             )
                         }
                     )
-                    if (gestureLevel >= 0f && !locked) {
+                    if (gestureLevel >= 0f && !locked && !audioMode) {
                         Surface(Modifier.align(Alignment.Center), color = Color(0xDD151827), shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp)) {
                             Column(Modifier.padding(horizontal = 24.dp, vertical = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                 Icon(if (gestureBrightness) Icons.Default.Brightness6 else Icons.Default.VolumeUp, null, tint = purple)
@@ -675,7 +732,7 @@ Full license texts and dependency notices should be made available on the develo
                         }
                     }
                 }
-                if (!pipActive && (controlsVisible || locked)) Column(
+                if (!pipActive && (controlsVisible || locked || audioMode)) Column(
                     Modifier.align(Alignment.TopCenter).fillMaxWidth()
                         .background(Color(0xC9000000)).padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
@@ -699,7 +756,7 @@ Full license texts and dependency notices should be made available on the develo
                             Icon(if (locked) Icons.Default.Lock else Icons.Default.LockOpen, "Lock controls", tint = purple)
                         }
                     }
-                    if (!locked) Row(
+                    if (!locked && activeLayout != "Cinema") Row(
                         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -734,10 +791,11 @@ Full license texts and dependency notices should be made available on the develo
                         }) { Text(if (repeatOne) "Repeat on" else "Repeat off") }
                     }
                 }
-                if (!pipActive && !locked && controlsVisible) Column(
+                if (!pipActive && !locked && (controlsVisible || audioMode)) Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                         .background(Color(0xC9000000)).padding(horizontal = 14.dp, vertical = 8.dp)
                 ) {
+                    if (activeLayout == "Cinema") Text("CINEMA", color = purple, fontSize = 11.sp)
                     Slider(
                         value = if (duration > 0) (progress.toFloat() / duration).coerceIn(0f, 1f) else 0f,
                         onValueChange = { if (duration > 0) player.seekTo((it * duration).toLong()); controlsInteraction++ }
@@ -747,7 +805,8 @@ Full license texts and dependency notices should be made available on the develo
                         Text("${duration / 60000}:${"%02d".format(duration / 1000 % 60)}", color = foreground)
                     }
                     Row(
-                        Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly,
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = if (activeLayout == "Modern") Arrangement.SpaceAround else Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(onClick = {
@@ -761,7 +820,7 @@ Full license texts and dependency notices should be made available on the develo
                         IconButton(onClick = { player.seekTo(player.currentPosition + seekSeconds * 1000); controlsInteraction++ }) {
                             Icon(Icons.Default.Forward10, "Seek forward", tint = foreground)
                         }
-                        TextButton(onClick = {
+                        if (activeLayout != "Cinema") TextButton(onClick = {
                             seekSeconds = if (seekSeconds == 10L) 30L else 10L
                             controlsInteraction++
                         }) { Text("${seekSeconds}s") }
