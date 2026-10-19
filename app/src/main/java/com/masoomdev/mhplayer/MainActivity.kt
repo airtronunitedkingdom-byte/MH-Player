@@ -118,6 +118,7 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     var splash by remember { mutableStateOf(true) }
     var exitPrompt by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
+    var quickSettingsOpen by remember { mutableStateOf(false) }
     var infoPage by remember { mutableStateOf<String?>(null) }
     var equalizerOpen by remember { mutableStateOf(false) }
     var equalizerEnabled by remember { mutableStateOf(prefs.getBoolean("eq_enabled", false)) }
@@ -185,8 +186,8 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     var resizeChoice by remember { mutableIntStateOf(0) }
     var repeatOne by remember { mutableStateOf(false) }
     var seekSeconds by remember { mutableLongStateOf(prefs.getLong("seek_seconds", 10L)) }
-    LaunchedEffect(selected?.uri, controlsVisible, controlsInteraction, locked, trackDialog, subtitleDialog, speedMenu, autoHideSeconds) {
-        if (selected != null && controlsVisible && !locked && !trackDialog && !subtitleDialog && !speedMenu) {
+    LaunchedEffect(selected?.uri, controlsVisible, controlsInteraction, locked, trackDialog, subtitleDialog, speedMenu, quickSettingsOpen, autoHideSeconds) {
+        if (selected != null && controlsVisible && !locked && !trackDialog && !subtitleDialog && !speedMenu && !quickSettingsOpen) {
             delay(autoHideSeconds * 1000L)
             controlsVisible = false
         }
@@ -306,7 +307,7 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     fun closePlayer() {
         selected?.let { prefs.edit().putLong("position_${it.uri}", player.currentPosition.coerceAtLeast(0L)).apply() }
         player.pause(); selected = null; locked = false; activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
-    BackHandler(enabled = !pipActive) { if (exitPrompt) exitPrompt = false else if (selected != null) { if (locked) locked = false else closePlayer() } else if (infoPage != null) infoPage = null else if (settingsOpen) settingsOpen = false else if (currentFolder != null) currentFolder = null else exitPrompt = true }
+    BackHandler(enabled = !pipActive) { if (quickSettingsOpen) quickSettingsOpen = false else if (exitPrompt) exitPrompt = false else if (selected != null) { if (locked) locked = false else closePlayer() } else if (infoPage != null) infoPage = null else if (settingsOpen) settingsOpen = false else if (currentFolder != null) currentFolder = null else exitPrompt = true }
     if (trackDialog || subtitleDialog) {
         val isAudio = trackDialog
         val trackType = if (isAudio) C.TRACK_TYPE_AUDIO else C.TRACK_TYPE_TEXT
@@ -387,10 +388,76 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
         confirmButton = { TextButton(onClick = { equalizerOpen = false }) { Text("Done") } }
     )
     if (exitPrompt) AlertDialog(onDismissRequest = { exitPrompt = false }, title = { Text("Exit MH Player?") }, text = { Text("Are you sure you want to close MH Player?") }, confirmButton = { TextButton(onClick = { activity.finish() }) { Text("Exit app") } }, dismissButton = { TextButton(onClick = { exitPrompt = false }) { Text("Stay in app") } })
+    // Keep the active player mounted while changing its settings.
     MaterialTheme(colorScheme = if (themeChoice == "White")
         lightColorScheme(primary = purple, background = dark, surface = Color.White, onBackground = foreground, onSurface = foreground)
         else darkColorScheme(primary = purple, background = dark,
             surface = if (themeChoice == "Dark") Color(0xFF20232A) else Color(0xFF1A2034))) {
+        if (quickSettingsOpen && selected != null && !pipActive) {
+            AlertDialog(
+                onDismissRequest = { quickSettingsOpen = false },
+                title = { Text("Playback settings") },
+                text = {
+                    Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState())) {
+                        Text("PLAYER DESIGN", color = MaterialTheme.colorScheme.primary)
+                        Text(if (selected?.video == true) "Video layout" else "Audio layout")
+                        val options = if (selected?.video == true) listOf("Classic", "Modern", "Cinema")
+                            else listOf("Classic", "Modern", "Studio")
+                        options.forEach { option ->
+                            val active = if (selected?.video == true) videoLayout == option else audioLayout == option
+                            Row(Modifier.fillMaxWidth().clickable {
+                                if (selected?.video == true) {
+                                    videoLayout = option
+                                    prefs.edit().putString("video_layout", option).apply()
+                                } else {
+                                    audioLayout = option
+                                    prefs.edit().putString("audio_layout", option).apply()
+                                }
+                                controlsVisible = true
+                                controlsInteraction++
+                            }.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(selected = active, onClick = null)
+                                Text(option)
+                            }
+                        }
+                        HorizontalDivider()
+                        Text("AUDIO", color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 12.dp))
+                        SettingsToggle("Equalizer", "Apply audio effects during playback", equalizerEnabled) {
+                            equalizerEnabled = it
+                            prefs.edit().putBoolean("eq_enabled", it).apply()
+                        }
+                        TextButton(onClick = {
+                            quickSettingsOpen = false
+                            equalizerOpen = true
+                        }) { Text("Equalizer bands & presets") }
+                        if (equalizerEnabled && !eqAvailable) {
+                            Text("Equalizer is unavailable on this device.", color = MaterialTheme.colorScheme.error)
+                        }
+                        HorizontalDivider()
+                        Text("PLAYBACK", color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 12.dp))
+                        SettingsToggle("Resume playback", "Remember playback position", resumePlayback) {
+                            resumePlayback = it; prefs.edit().putBoolean("resume", it).apply()
+                        }
+                        SettingsToggle("Background playback", "Continue audio outside the app", backgroundPlay) {
+                            backgroundPlay = it; prefs.edit().putBoolean("background_play", it).apply()
+                        }
+                        Text("THEME", color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 12.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            listOf("White", "Dark", "Purple").forEach { option ->
+                                FilterChip(selected = themeChoice == option, onClick = {
+                                    themeChoice = option; prefs.edit().putString("ui_theme", option).apply()
+                                }, label = { Text(option) })
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { quickSettingsOpen = false; controlsVisible = true; controlsInteraction++ }) {
+                        Text("Done")
+                    }
+                }
+            )
+        }
         if (splash) {
             Box(Modifier.fillMaxSize().background(dark), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.PlayCircle, null, Modifier.size(86.dp), tint = purple); Spacer(Modifier.height(12.dp)); Text("MH PLAYER", fontSize = 32.sp, color = foreground); Text("Your media. Your device.", color = secondaryText) }
@@ -751,6 +818,13 @@ Full license texts and dependency notices should be made available on the develo
                             }) {
                                 Icon(Icons.Default.PictureInPictureAlt, "Picture-in-Picture", tint = purple)
                             }
+                        }
+                        if (!locked) IconButton(onClick = {
+                            quickSettingsOpen = true
+                            controlsVisible = true
+                            controlsInteraction++
+                        }) {
+                            Icon(Icons.Default.Settings, "Playback settings", tint = purple)
                         }
                         IconButton(onClick = { locked = !locked; controlsInteraction++ }) {
                             Icon(if (locked) Icons.Default.Lock else Icons.Default.LockOpen, "Lock controls", tint = purple)
