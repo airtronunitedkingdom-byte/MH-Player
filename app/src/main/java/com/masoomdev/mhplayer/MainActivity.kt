@@ -100,7 +100,7 @@ private fun scanMedia(activity: ComponentActivity): List<LocalMedia> {
 }
 
 @Composable
-private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
+private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     val context = LocalContext.current
     val pipActive = activity.pipActive
     val prefs = remember { activity.getSharedPreferences("mh_player", 0) }
