@@ -23,6 +23,9 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -53,7 +56,7 @@ import kotlinx.coroutines.launch
 
 private val dark = Color(0xFF0D1020)
 private val purple = Color(0xFF9B72FF)
-private data class LocalMedia(val title: String, val uri: Uri, val video: Boolean, val duration: Long, val folder: String)
+private data class LocalMedia(val title: String, val uri: Uri, val video: Boolean, val duration: Long, val folder: String, val size: Long, val dateAdded: Long)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -71,14 +74,16 @@ private fun scanMedia(activity: ComponentActivity): List<LocalMedia> {
     for (video in listOf(true, false)) {
         if ((video && !permissionVideo) || (!video && !permissionAudio)) continue
         val base = if (video) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-        val projection = if (Build.VERSION.SDK_INT >= 29) arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.DURATION, MediaStore.MediaColumns.RELATIVE_PATH) else arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.DURATION)
+        val projection = if (Build.VERSION.SDK_INT >= 29) arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.DURATION, MediaStore.MediaColumns.RELATIVE_PATH, MediaStore.MediaColumns.SIZE, MediaStore.MediaColumns.DATE_ADDED) else arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.DURATION, MediaStore.MediaColumns.SIZE, MediaStore.MediaColumns.DATE_ADDED)
         try {
             activity.contentResolver.query(base, projection, null, null, "${MediaStore.MediaColumns.DATE_ADDED} DESC")?.use { cursor ->
                 val idIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
                 val nameIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
                 val durationIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DURATION)
                 val folderIndex = cursor.getColumnIndex(MediaStore.MediaColumns.RELATIVE_PATH)
-                while (cursor.moveToNext()) output.add(LocalMedia(cursor.getString(nameIndex) ?: "Unknown", ContentUris.withAppendedId(base, cursor.getLong(idIndex)), video, cursor.getLong(durationIndex), if (folderIndex >= 0) (cursor.getString(folderIndex) ?: "Other").trimEnd('/') else "Device storage"))
+                val sizeIndex = cursor.getColumnIndex(MediaStore.MediaColumns.SIZE)
+                val dateIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DATE_ADDED)
+                while (cursor.moveToNext()) output.add(LocalMedia(cursor.getString(nameIndex) ?: "Unknown", ContentUris.withAppendedId(base, cursor.getLong(idIndex)), video, cursor.getLong(durationIndex), if (folderIndex >= 0) (cursor.getString(folderIndex) ?: "Other").trimEnd('/') else "Device storage", if (sizeIndex >= 0) cursor.getLong(sizeIndex) else 0L, if (dateIndex >= 0) cursor.getLong(dateIndex) else 0L))
             }
         } catch (_: Exception) { }
     }
@@ -123,7 +128,11 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     var showVideo by remember { mutableStateOf(true) }
     var currentFolder by remember { mutableStateOf<String?>(null) }
     var searchText by remember { mutableStateOf("") }
-    var sortByName by remember { mutableStateOf(prefs.getBoolean("sort_name", true)) }
+    var sortMode by remember { mutableStateOf(prefs.getString("sort_mode", "Name") ?: "Name") }
+    var sortDescending by remember { mutableStateOf(prefs.getBoolean("sort_desc", false)) }
+    var libraryView by remember { mutableStateOf(prefs.getString("library_view", "Folders") ?: "Folders") }
+    var gridView by remember { mutableStateOf(prefs.getBoolean("grid_view", false)) }
+    var libraryOptions by remember { mutableStateOf(false) }
     var libraryLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     fun refreshMedia() { scope.launch { libraryLoading = true; media = withContext(Dispatchers.IO) { scanMedia(activity) }; libraryLoading = false } }
@@ -198,7 +207,7 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     var duration by remember { mutableLongStateOf(0L) }
     val audioManager = remember { context.getSystemService(AudioManager::class.java) }
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) selected = LocalMedia(uri.lastPathSegment ?: "Opened file", uri, true, 0L, "Opened files")
+        if (uri != null) selected = LocalMedia(uri.lastPathSegment ?: "Opened file", uri, true, 0L, "Opened files", 0L, 0L)
     }
     val subtitlePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -438,7 +447,7 @@ Full license texts and dependency notices should be made available on the develo
                         FilterChip(selected = seekSeconds == 30L, onClick = { seekSeconds = 30L; prefs.edit().putLong("seek_seconds", 30L).apply() }, label = { Text("30s") })
                     }
                     Text("LIBRARY", color = purple, modifier = Modifier.padding(top = 20.dp))
-                    SettingsToggle("Sort files by name", "Turn off for recent-first order", sortByName) { sortByName = it; prefs.edit().putBoolean("sort_name", it).apply() }
+                    Text("Library sorting and layout can be changed from the library view menu.", color = Color.LightGray)
                     Text("ABOUT & LEGAL", color = purple, modifier = Modifier.padding(top = 20.dp, bottom = 8.dp))
                     TextButton(onClick = {
                         val url = "https://masoomdev-website.vercel.app/apps/mh-player/privacy/"
@@ -628,11 +637,62 @@ Full license texts and dependency notices should be made available on the develo
                     Spacer(Modifier.width(12.dp))
                     FilterChip(selected = !showVideo, onClick = { showVideo = false; currentFolder = null }, label = { Text("Audio") })
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { refreshMedia() }) { Text("Refresh") }
-                    TextButton(onClick = { sortByName = !sortByName }) { Text(if (sortByName) "Name ↑" else "Recent") }
+                    TextButton(onClick = { libraryOptions = true }) {
+                        Icon(Icons.Default.Tune, "Library options", tint = purple)
+                        Text("View / Sort")
+                    }
                     TextButton(onClick = { filePicker.launch(arrayOf("video/*", "audio/*", "application/octet-stream")) }) { Text("Open file") }
                 }
+                if (libraryOptions) AlertDialog(
+                    onDismissRequest = { libraryOptions = false },
+                    title = { Text("Library view & sort") },
+                    text = {
+                        Column(Modifier.verticalScroll(rememberScrollState())) {
+                            Text("View mode")
+                            Row {
+                                listOf("Folders", "All files").forEach { mode ->
+                                    FilterChip(selected = libraryView == mode, onClick = {
+                                        libraryView = mode; currentFolder = null
+                                        prefs.edit().putString("library_view", mode).apply()
+                                    }, label = { Text(mode) })
+                                    Spacer(Modifier.width(8.dp))
+                                }
+                            }
+                            Text("Layout")
+                            Row {
+                                listOf(false to "List", true to "Grid").forEach { (grid, label) ->
+                                    FilterChip(selected = gridView == grid, onClick = {
+                                        gridView = grid; prefs.edit().putBoolean("grid_view", grid).apply()
+                                    }, label = { Text(label) })
+                                    Spacer(Modifier.width(8.dp))
+                                }
+                            }
+                            Text("Sort by")
+                            listOf("Name", "Date", "Duration", "Size").chunked(2).forEach { modes ->
+                                Row {
+                                    modes.forEach { mode ->
+                                        FilterChip(selected = sortMode == mode, onClick = {
+                                            sortMode = mode; prefs.edit().putString("sort_mode", mode).apply()
+                                        }, label = { Text(mode) })
+                                        Spacer(Modifier.width(8.dp))
+                                    }
+                                }
+                            }
+                            Row {
+                                FilterChip(selected = !sortDescending, onClick = {
+                                    sortDescending = false; prefs.edit().putBoolean("sort_desc", false).apply()
+                                }, label = { Text("Ascending") })
+                                Spacer(Modifier.width(8.dp))
+                                FilterChip(selected = sortDescending, onClick = {
+                                    sortDescending = true; prefs.edit().putBoolean("sort_desc", true).apply()
+                                }, label = { Text("Descending") })
+                            }
+                        }
+                    },
+                    confirmButton = { TextButton(onClick = { libraryOptions = false }) { Text("Done") } }
+                )
                 OutlinedTextField(value = searchText, onValueChange = { searchText = it }, label = { Text("Search folders or files") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
                 if (currentFolder != null) {
@@ -640,13 +700,13 @@ Full license texts and dependency notices should be made available on the develo
                         IconButton(onClick = { currentFolder = null }) { Icon(Icons.Default.ArrowBack, "Folders", tint = purple) }
                         Text(currentFolder ?: "", color = Color.White, maxLines = 2)
                     }
-                } else Text("Folders", color = Color.White, fontSize = 20.sp)
+                } else Text(if (libraryView == "Folders") "Folders" else "All files", color = Color.White, fontSize = 20.sp)
                 if (libraryLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
                 val filtered = media.filter { it.video == showVideo && (searchText.isBlank() || it.title.contains(searchText, true) || it.folder.contains(searchText, true)) }
                 val folders = filtered.groupBy { it.folder }
                 if (filtered.isEmpty()) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text("No media found. Tap Open file to browse.", color = Color.LightGray)
-                } else if (currentFolder == null) {
+                } else if (currentFolder == null && libraryView == "Folders") {
                     LazyColumn {
                         items(folders.entries.sortedBy { it.key }) { folder ->
                             Row(Modifier.fillMaxWidth().clickable { currentFolder = folder.key }.padding(vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -662,19 +722,43 @@ Full license texts and dependency notices should be made available on the develo
                         }
                     }
                 } else {
-                    val entries = filtered.filter { it.folder == currentFolder }
-                    val sorted = if (sortByName) entries.sortedBy { it.title.lowercase() } else entries
-                    LazyColumn {
-                        items(sorted, key = { it.uri.toString() }) { item ->
-                            Row(Modifier.fillMaxWidth().clickable { selected = item }.padding(vertical = 15.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(if (item.video) Icons.Default.Movie else Icons.Default.MusicNote, null, tint = purple)
-                                Spacer(Modifier.width(14.dp))
-                                Column {
+                    val entries = if (currentFolder == null) filtered else filtered.filter { it.folder == currentFolder }
+                    val ordered = when (sortMode) {
+                        "Date" -> entries.sortedBy { it.dateAdded }
+                        "Duration" -> entries.sortedBy { it.duration }
+                        "Size" -> entries.sortedBy { it.size }
+                        else -> entries.sortedBy { it.title.lowercase() }
+                    }
+                    val sorted = if (sortDescending) ordered.reversed() else ordered
+                    if (gridView) {
+                        LazyVerticalGrid(columns = GridCells.Adaptive(minSize = 140.dp)) {
+                            gridItems(sorted, key = { it.uri.toString() }) { item ->
+                                Column(
+                                    Modifier.fillMaxWidth().clickable { selected = item }.padding(12.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Icon(if (item.video) Icons.Default.Movie else Icons.Default.MusicNote,
+                                        null, Modifier.size(46.dp), tint = purple)
+                                    Spacer(Modifier.height(8.dp))
                                     Text(item.title, color = Color.White, maxLines = 2)
                                     Text("${item.duration / 60000} min", color = Color.LightGray, fontSize = 12.sp)
                                 }
                             }
-                            HorizontalDivider(color = Color(0xFF30364C))
+                        }
+                    } else {
+                        LazyColumn {
+                            items(sorted, key = { it.uri.toString() }) { item ->
+                                Row(Modifier.fillMaxWidth().clickable { selected = item }.padding(vertical = 15.dp),
+                                    verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(if (item.video) Icons.Default.Movie else Icons.Default.MusicNote, null, tint = purple)
+                                    Spacer(Modifier.width(14.dp))
+                                    Column {
+                                        Text(item.title, color = Color.White, maxLines = 2)
+                                        Text("${item.duration / 60000} min", color = Color.LightGray, fontSize = 12.sp)
+                                    }
+                                }
+                                HorizontalDivider(color = Color(0xFF30364C))
+                            }
                         }
                     }
                 }
