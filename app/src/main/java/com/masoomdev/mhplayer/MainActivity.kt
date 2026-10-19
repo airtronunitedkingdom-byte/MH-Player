@@ -134,6 +134,15 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     var gridView by remember { mutableStateOf(prefs.getBoolean("grid_view", false)) }
     var libraryOptions by remember { mutableStateOf(false) }
     var libraryLoading by remember { mutableStateOf(false) }
+    var listSettingsOpen by remember { mutableStateOf(false) }
+    var markLastPlayed by remember { mutableStateOf(prefs.getBoolean("list_last_played", true)) }
+    var scrollToLast by remember { mutableStateOf(prefs.getBoolean("list_scroll_last", false)) }
+    var floatingResume by remember { mutableStateOf(prefs.getBoolean("list_floating_resume", false)) }
+    var newTagDays by remember { mutableIntStateOf(prefs.getInt("list_new_days", 7)) }
+    var showHidden by remember { mutableStateOf(prefs.getBoolean("list_show_hidden", false)) }
+    var includedFolders by remember { mutableStateOf(prefs.getString("list_folders", "") ?: "") }
+    var foldersDialog by remember { mutableStateOf(false) }
+    var lastPlayedUri by remember { mutableStateOf(prefs.getString("last_played_uri", "") ?: "") }
     val scope = rememberCoroutineScope()
     fun refreshMedia() { scope.launch { libraryLoading = true; media = withContext(Dispatchers.IO) { scanMedia(activity) }; libraryLoading = false } }
     var locked by remember { mutableStateOf(false) }
@@ -230,10 +239,12 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
         val needed = if (Build.VERSION.SDK_INT >= 33) arrayOf(Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.READ_MEDIA_AUDIO) else arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
         val missing = needed.filter { activity.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (missing.isNotEmpty()) permissions.launch(missing.toTypedArray()) else media = withContext(Dispatchers.IO) { scanMedia(activity) }
-        if (initialUri != null) selected = LocalMedia("Opened file", initialUri, true, 0L, "Opened files")
+        if (initialUri != null) selected = LocalMedia("Opened file", initialUri, true, 0L, "Opened files", 0L, 0L)
     }
     LaunchedEffect(selected?.uri) {
         val item = selected ?: return@LaunchedEffect
+        lastPlayedUri = item.uri.toString()
+        prefs.edit().putString("last_played_uri", lastPlayedUri).apply()
         player.setMediaItem(MediaItem.fromUri(item.uri))
         player.prepare()
         val saved = prefs.getLong("position_${item.uri}", 0L)
@@ -420,6 +431,87 @@ Full license texts and dependency notices should be made available on the develo
                     )
                 }
             }
+        } else if (listSettingsOpen) {
+            Column(Modifier.fillMaxSize().background(dark).padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { listSettingsOpen = false }) {
+                        Icon(Icons.Default.ArrowBack, "Back", tint = Color.White)
+                    }
+                    Text("List", fontSize = 26.sp, color = Color.White)
+                }
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                    Text("APPEARANCE", color = purple, modifier = Modifier.padding(top = 20.dp))
+                    SettingsToggle("Last media in each folder", "Mark the last played media in the library.", markLastPlayed) {
+                        markLastPlayed = it; prefs.edit().putBoolean("list_last_played", it).apply()
+                    }
+                    SettingsToggle("Scroll down to last media", "Auto-scroll to the last played item when opening its folder.", scrollToLast) {
+                        scrollToLast = it; prefs.edit().putBoolean("list_scroll_last", it).apply()
+                    }
+                    SettingsToggle("Floating button", "Show a shortcut to resume the last played media in the library.", floatingResume) {
+                        floatingResume = it; prefs.edit().putBoolean("list_floating_resume", it).apply()
+                    }
+                    Text("Period tagged as NEW", color = Color.White, modifier = Modifier.padding(top = 16.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(0, 1, 7, 30).forEach { days ->
+                            FilterChip(selected = newTagDays == days, onClick = {
+                                newTagDays = days; prefs.edit().putInt("list_new_days", days).apply()
+                            }, label = { Text(if (days == 0) "Off" else "${days}d") })
+                        }
+                    }
+                    Text("SCAN", color = purple, modifier = Modifier.padding(top = 24.dp))
+                    Row(Modifier.fillMaxWidth().clickable { foldersDialog = true }.padding(vertical = 16.dp)) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Folders", color = Color.White)
+                            Text("Choose which media folders appear in the library.", color = Color.LightGray, fontSize = 12.sp)
+                        }
+                        Icon(Icons.Default.ChevronRight, null, tint = purple)
+                    }
+                    SettingsToggle("Show hidden files and folders",
+                        "Include media with names or folder paths starting with a dot, if Android exposes them.",
+                        showHidden) {
+                        showHidden = it; prefs.edit().putBoolean("list_show_hidden", it).apply()
+                    }
+                    Text("Android MediaStore normally excludes .nomedia folders. System media scanning rules still apply.",
+                        color = Color.LightGray, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
+                }
+            }
+            if (foldersDialog) {
+                var folderSelection by remember { mutableStateOf(includedFolders) }
+                AlertDialog(onDismissRequest = { foldersDialog = false },
+                    title = { Text("Included folders") },
+                    text = {
+                        Column(Modifier.heightIn(max = 340.dp).verticalScroll(rememberScrollState())) {
+                            Text("Leave all selected to scan every available folder.")
+                            val options = media.map { it.folder }.distinct().sorted()
+                            options.forEach { folder ->
+                                val active = folderSelection.isBlank() || folder in folderSelection.split("|")
+                                Row(Modifier.fillMaxWidth().clickable {
+                                    val selectedFolders = if (folderSelection.isBlank()) options.toMutableSet()
+                                        else folderSelection.split("|").filter { it.isNotBlank() }.toMutableSet()
+                                    if (active) selectedFolders.remove(folder) else selectedFolders.add(folder)
+                                    folderSelection = selectedFolders.joinToString("|")
+                                }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Checkbox(checked = active, onCheckedChange = null)
+                                    Text(folder, color = Color.DarkGray, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            includedFolders = folderSelection
+                            prefs.edit().putString("list_folders", includedFolders).apply()
+                            foldersDialog = false
+                        }) { Text("Done") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = {
+                            includedFolders = ""
+                            prefs.edit().putString("list_folders", "").apply()
+                            foldersDialog = false
+                        }) { Text("All folders") }
+                    })
+            }
         } else if (settingsOpen) {
             Column(Modifier.fillMaxSize().background(dark).padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -447,6 +539,11 @@ Full license texts and dependency notices should be made available on the develo
                         FilterChip(selected = seekSeconds == 30L, onClick = { seekSeconds = 30L; prefs.edit().putLong("seek_seconds", 30L).apply() }, label = { Text("30s") })
                     }
                     Text("LIBRARY", color = purple, modifier = Modifier.padding(top = 20.dp))
+                    Row(Modifier.fillMaxWidth().clickable { listSettingsOpen = true }.padding(vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text("List", color = Color.White, modifier = Modifier.weight(1f))
+                        Icon(Icons.Default.ChevronRight, "List settings", tint = purple)
+                    }
                     Text("Library sorting and layout can be changed from the library view menu.", color = Color.LightGray)
                     Text("ABOUT & LEGAL", color = purple, modifier = Modifier.padding(top = 20.dp, bottom = 8.dp))
                     TextButton(onClick = {
@@ -702,8 +799,20 @@ Full license texts and dependency notices should be made available on the develo
                     }
                 } else Text(if (libraryView == "Folders") "Folders" else "All files", color = Color.White, fontSize = 20.sp)
                 if (libraryLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
-                val filtered = media.filter { it.video == showVideo && (searchText.isBlank() || it.title.contains(searchText, true) || it.folder.contains(searchText, true)) }
+                val filtered = media.filter {
+                    it.video == showVideo &&
+                    (includedFolders.isBlank() || it.folder in includedFolders.split("|")) &&
+                    (showHidden || (!it.title.startsWith(".") && it.folder.split("/").none { part -> part.startsWith(".") })) &&
+                    (searchText.isBlank() || it.title.contains(searchText, true) || it.folder.contains(searchText, true))
+                }
                 val folders = filtered.groupBy { it.folder }
+                if (floatingResume && lastPlayedUri.isNotBlank()) {
+                    val resumeItem = media.firstOrNull { it.uri.toString() == lastPlayedUri }
+                    if (resumeItem != null) TextButton(onClick = { selected = resumeItem }) {
+                        Icon(Icons.Default.PlayCircle, "Resume last played", tint = purple)
+                        Text("Resume last played")
+                    }
+                }
                 if (filtered.isEmpty()) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text("No media found. Tap Open file to browse.", color = Color.LightGray)
                 } else if (currentFolder == null && libraryView == "Folders") {
@@ -715,6 +824,9 @@ Full license texts and dependency notices should be made available on the develo
                                 Column(Modifier.weight(1f)) {
                                     Text(folder.key.substringAfterLast('/').ifBlank { "Device storage" }, color = Color.White, fontSize = 17.sp)
                                     Text(folder.key + " • " + folder.value.size + " files", color = Color.LightGray, fontSize = 12.sp, maxLines = 2)
+                                    if (markLastPlayed && folder.value.any { it.uri.toString() == lastPlayedUri }) {
+                                        Text("Last played", color = purple, fontSize = 12.sp)
+                                    }
                                 }
                                 Icon(Icons.Default.ChevronRight, null, tint = Color.LightGray)
                             }
@@ -741,6 +853,8 @@ Full license texts and dependency notices should be made available on the develo
                                         null, Modifier.size(46.dp), tint = purple)
                                     Spacer(Modifier.height(8.dp))
                                     Text(item.title, color = Color.White, maxLines = 2)
+                                    if (markLastPlayed && item.uri.toString() == lastPlayedUri) Text("Last played", color = purple, fontSize = 12.sp)
+                                    if (newTagDays > 0 && item.dateAdded > 0 && System.currentTimeMillis() / 1000 - item.dateAdded <= newTagDays * 86400L) Text("NEW", color = purple, fontSize = 11.sp)
                                     Text("${item.duration / 60000} min", color = Color.LightGray, fontSize = 12.sp)
                                 }
                             }
