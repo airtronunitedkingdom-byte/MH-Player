@@ -873,7 +873,18 @@ Full license texts and dependency notices should be made available on the develo
                     Text("No media found. Tap Open file to browse.", color = secondaryText)
                 } else if (currentFolder == null && libraryView == "Folders") {
                     LazyColumn {
-                        items(folders.entries.sortedBy { it.key }) { folder ->
+                        items(
+                            folders.entries.let { groups ->
+                                val orderedFolders = when (sortMode) {
+                                    "Date" -> groups.sortedWith(compareBy({ it.value.maxOfOrNull { media -> media.dateAdded } ?: 0L }, { it.key.lowercase() }))
+                                    "Duration" -> groups.sortedWith(compareBy({ it.value.sumOf { media -> media.duration.coerceAtLeast(0L) } }, { it.key.lowercase() }))
+                                    "Size" -> groups.sortedWith(compareBy({ it.value.sumOf { media -> media.size.coerceAtLeast(0L) } }, { it.key.lowercase() }))
+                                    else -> groups.sortedBy { it.key.lowercase() }
+                                }
+                                if (sortDescending) orderedFolders.reversed() else orderedFolders
+                            },
+                            key = { it.key }
+                        ) { folder ->
                             Row(Modifier.fillMaxWidth().clickable { currentFolder = folder.key }.padding(vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.Folder, null, tint = purple, modifier = Modifier.size(36.dp))
                                 Spacer(Modifier.width(14.dp))
@@ -892,9 +903,9 @@ Full license texts and dependency notices should be made available on the develo
                 } else {
                     val entries = if (currentFolder == null) filtered else filtered.filter { it.folder == currentFolder }
                     val ordered = when (sortMode) {
-                        "Date" -> entries.sortedBy { it.dateAdded }
-                        "Duration" -> entries.sortedBy { it.duration }
-                        "Size" -> entries.sortedBy { it.size }
+                        "Date" -> entries.sortedWith(compareBy({ it.dateAdded }, { it.title.lowercase() }))
+                        "Duration" -> entries.sortedWith(compareBy({ it.duration }, { it.title.lowercase() }))
+                        "Size" -> entries.sortedWith(compareBy({ it.size }, { it.title.lowercase() }))
                         else -> entries.sortedBy { it.title.lowercase() }
                     }
                     val sorted = if (sortDescending) ordered.reversed() else ordered
