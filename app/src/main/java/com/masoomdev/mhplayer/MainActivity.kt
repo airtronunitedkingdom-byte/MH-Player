@@ -9,6 +9,9 @@ import android.net.Uri
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.app.PictureInPictureParams
+import android.content.res.Configuration
+import android.util.Rational
 import android.provider.MediaStore
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -59,6 +62,12 @@ private val purple = Color(0xFF9B72FF)
 private data class LocalMedia(val title: String, val uri: Uri, val video: Boolean, val duration: Long, val folder: String, val size: Long, val dateAdded: Long)
 
 class MainActivity : ComponentActivity() {
+    var pipActive by mutableStateOf(false)
+        private set
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        pipActive = isInPictureInPictureMode
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = android.graphics.Color.rgb(13,16,32)
@@ -93,6 +102,7 @@ private fun scanMedia(activity: ComponentActivity): List<LocalMedia> {
 @Composable
 private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     val context = LocalContext.current
+    val pipActive = activity.pipActive
     val prefs = remember { activity.getSharedPreferences("mh_player", 0) }
     val player = remember {
         val renderers = DefaultRenderersFactory(context)
@@ -219,9 +229,9 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
         } catch (_: Exception) { eqAvailable = false }
     }
     val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner, player, backgroundPlay) {
+    DisposableEffect(lifecycleOwner, player, backgroundPlay, pipActive) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP && !backgroundPlay) player.pause()
+            if (event == Lifecycle.Event.ON_STOP && !backgroundPlay && !pipActive && !activity.isInPictureInPictureMode) player.pause()
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -294,7 +304,7 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     fun closePlayer() {
         selected?.let { prefs.edit().putLong("position_${it.uri}", player.currentPosition.coerceAtLeast(0L)).apply() }
         player.pause(); selected = null; locked = false; activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
-    BackHandler { if (exitPrompt) exitPrompt = false else if (selected != null) { if (locked) locked = false else closePlayer() } else if (infoPage != null) infoPage = null else if (settingsOpen) settingsOpen = false else if (currentFolder != null) currentFolder = null else exitPrompt = true }
+    BackHandler(enabled = !pipActive) { if (exitPrompt) exitPrompt = false else if (selected != null) { if (locked) locked = false else closePlayer() } else if (infoPage != null) infoPage = null else if (settingsOpen) settingsOpen = false else if (currentFolder != null) currentFolder = null else exitPrompt = true }
     if (trackDialog || subtitleDialog) {
         val isAudio = trackDialog
         val trackType = if (isAudio) C.TRACK_TYPE_AUDIO else C.TRACK_TYPE_TEXT
@@ -602,7 +612,7 @@ Full license texts and dependency notices should be made available on the develo
             Box(Modifier.fillMaxSize().background(Color.Black)) {
                 Box(Modifier.fillMaxSize()) {
                     AndroidView(factory = { ctx -> PlayerView(ctx).apply { this.player = player; useController = false } }, modifier = Modifier.fillMaxSize(), update = { it.resizeMode = resizeChoice })
-                    Box(Modifier.fillMaxSize()
+                    if (!pipActive) Box(Modifier.fillMaxSize()
                         .pointerInput(locked) {
                             detectTapGestures(onTap = {
                                 if (!locked) {
@@ -665,7 +675,7 @@ Full license texts and dependency notices should be made available on the develo
                         }
                     }
                 }
-                if (controlsVisible || locked) Column(
+                if (!pipActive && (controlsVisible || locked)) Column(
                     Modifier.align(Alignment.TopCenter).fillMaxWidth()
                         .background(Color(0xC9000000)).padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
@@ -674,6 +684,17 @@ Full license texts and dependency notices should be made available on the develo
                             Icon(Icons.Default.ArrowBack, "Back", tint = foreground)
                         }
                         Text(selected?.title ?: "", Modifier.weight(1f), color = foreground, maxLines = 1)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && selected?.video == true) {
+                            IconButton(onClick = {
+                                try {
+                                    val params = PictureInPictureParams.Builder()
+                                        .setAspectRatio(Rational(16, 9)).build()
+                                    activity.enterPictureInPictureMode(params)
+                                } catch (_: Exception) { }
+                            }) {
+                                Icon(Icons.Default.PictureInPictureAlt, "Picture-in-Picture", tint = purple)
+                            }
+                        }
                         IconButton(onClick = { locked = !locked; controlsInteraction++ }) {
                             Icon(if (locked) Icons.Default.Lock else Icons.Default.LockOpen, "Lock controls", tint = purple)
                         }
@@ -713,7 +734,7 @@ Full license texts and dependency notices should be made available on the develo
                         }) { Text(if (repeatOne) "Repeat on" else "Repeat off") }
                     }
                 }
-                if (!locked && controlsVisible) Column(
+                if (!pipActive && !locked && controlsVisible) Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                         .background(Color(0xC9000000)).padding(horizontal = 14.dp, vertical = 8.dp)
                 ) {
@@ -745,7 +766,7 @@ Full license texts and dependency notices should be made available on the develo
                             controlsInteraction++
                         }) { Text("${seekSeconds}s") }
                     }
-                } else if (locked) Box(
+                } else if (!pipActive && locked) Box(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(14.dp),
                     contentAlignment = Alignment.Center
                 ) {
