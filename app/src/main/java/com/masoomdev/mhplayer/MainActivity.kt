@@ -459,13 +459,8 @@ Full license texts and dependency notices should be made available on the develo
                 }
             }
         } else if (selected != null) {
-            Column(Modifier.fillMaxSize().background(Color.Black)) {
-                if (controlsVisible || locked) Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { if (locked) locked = false else closePlayer() }) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White) }
-                    Text(selected?.title ?: "", Modifier.weight(1f), color = Color.White, maxLines = 1)
-                    IconButton(onClick = { locked = !locked }) { Icon(if (locked) Icons.Default.Lock else Icons.Default.LockOpen, "Lock controls", tint = purple) }
-                }
-                Box(Modifier.weight(1f).fillMaxWidth()) {
+            Box(Modifier.fillMaxSize().background(Color.Black)) {
+                Box(Modifier.fillMaxSize()) {
                     AndroidView(factory = { ctx -> PlayerView(ctx).apply { this.player = player; useController = false } }, modifier = Modifier.fillMaxSize(), update = { it.resizeMode = resizeChoice })
                     Box(Modifier.fillMaxSize()
                         .pointerInput(locked) {
@@ -530,24 +525,94 @@ Full license texts and dependency notices should be made available on the develo
                         }
                     }
                 }
-                if (!locked && controlsVisible) Column(Modifier.fillMaxWidth().background(dark).padding(14.dp)) {
-                    Slider(value = if (duration > 0) (progress.toFloat() / duration).coerceIn(0f, 1f) else 0f, onValueChange = { if (duration > 0) player.seekTo((it * duration).toLong()) })
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("${progress / 60000}:${"%02d".format(progress / 1000 % 60)}", color = Color.White); Text("${duration / 60000}:${"%02d".format(duration / 1000 % 60)}", color = Color.White) }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { player.seekTo((player.currentPosition - seekSeconds * 1000).coerceAtLeast(0)) }) { Icon(Icons.Default.Replay10, "Back 10s", tint = Color.White) }
-                        IconButton(onClick = { if (player.isPlaying) player.pause() else player.play() }) { Icon(if (playing) Icons.Default.PauseCircle else Icons.Default.PlayCircle, "Play pause", Modifier.size(52.dp), tint = purple) }
-                        IconButton(onClick = { player.seekTo(player.currentPosition + seekSeconds * 1000) }) { Icon(Icons.Default.Forward10, "Forward 10s", tint = Color.White) }
-                        Box { TextButton(onClick = { speedMenu = true }) { Text("${playbackSpeed}x") }; DropdownMenu(expanded = speedMenu, onDismissRequest = { speedMenu = false }) { listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f).forEach { value -> DropdownMenuItem(text = { Text("${value}x") }, onClick = { playbackSpeed = value; player.setPlaybackSpeed(value); speedMenu = false }) } } }
-                        IconButton(onClick = { trackDialog = true }) { Icon(Icons.Default.Audiotrack, "Audio tracks", tint = Color.White) }
-                        IconButton(onClick = { subtitleDialog = true }) { Icon(Icons.Default.Subtitles, "Subtitle tracks", tint = Color.White) }
+                if (controlsVisible || locked) Column(
+                    Modifier.align(Alignment.TopCenter).fillMaxWidth()
+                        .background(Color(0xC9000000)).padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { if (locked) locked = false else closePlayer() }) {
+                            Icon(Icons.Default.ArrowBack, "Back", tint = Color.White)
+                        }
+                        Text(selected?.title ?: "", Modifier.weight(1f), color = Color.White, maxLines = 1)
+                        IconButton(onClick = { locked = !locked; controlsInteraction++ }) {
+                            Icon(if (locked) Icons.Default.Lock else Icons.Default.LockOpen, "Lock controls", tint = purple)
+                        }
                     }
-                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
-                        TextButton(onClick = { subtitlePicker.launch(arrayOf("*/*")) }) { Text("+ Subtitle") }
-                        TextButton(onClick = { resizeChoice = when (resizeChoice) { 0 -> 2; 2 -> 3; else -> 0 } }) { Text("View: " + when (resizeChoice) { 0 -> "Fit"; 2 -> "Zoom"; else -> "Stretch" }) }
-                        TextButton(onClick = { repeatOne = !repeatOne; player.repeatMode = if (repeatOne) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF }) { Text(if (repeatOne) "Repeat on" else "Repeat off") }
-                        TextButton(onClick = { seekSeconds = if (seekSeconds == 10L) 30L else 10L }) { Text("Seek ${seekSeconds}s") }
+                    if (!locked) Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box {
+                            TextButton(onClick = { speedMenu = true; controlsInteraction++ }) { Text("${playbackSpeed}x") }
+                            DropdownMenu(expanded = speedMenu, onDismissRequest = { speedMenu = false }) {
+                                listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f).forEach { value ->
+                                    DropdownMenuItem(text = { Text("${value}x") }, onClick = {
+                                        playbackSpeed = value; player.setPlaybackSpeed(value); speedMenu = false; controlsInteraction++
+                                    })
+                                }
+                            }
+                        }
+                        TextButton(onClick = { trackDialog = true; controlsInteraction++ }) {
+                            Icon(Icons.Default.Audiotrack, "Audio tracks", tint = purple)
+                            Text("Audio")
+                        }
+                        TextButton(onClick = { subtitleDialog = true; controlsInteraction++ }) {
+                            Icon(Icons.Default.Subtitles, "Subtitles", tint = purple)
+                            Text("CC")
+                        }
+                        TextButton(onClick = { subtitlePicker.launch(arrayOf("*/*")); controlsInteraction++ }) { Text("+ Subtitle") }
+                        TextButton(onClick = {
+                            resizeChoice = when (resizeChoice) { 0 -> 2; 2 -> 3; else -> 0 }
+                            controlsInteraction++
+                        }) { Text("View: " + when (resizeChoice) { 0 -> "Fit"; 2 -> "Zoom"; else -> "Stretch" }) }
+                        TextButton(onClick = {
+                            repeatOne = !repeatOne
+                            player.repeatMode = if (repeatOne) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
+                            controlsInteraction++
+                        }) { Text(if (repeatOne) "Repeat on" else "Repeat off") }
                     }
-                } else if (locked) Box(Modifier.fillMaxWidth().padding(14.dp), contentAlignment = Alignment.Center) { TextButton(onClick = { locked = false; controlsVisible = true; controlsInteraction++ }) { Text("Unlock controls") } }
+                }
+                if (!locked && controlsVisible) Column(
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                        .background(Color(0xC9000000)).padding(horizontal = 14.dp, vertical = 8.dp)
+                ) {
+                    Slider(
+                        value = if (duration > 0) (progress.toFloat() / duration).coerceIn(0f, 1f) else 0f,
+                        onValueChange = { if (duration > 0) player.seekTo((it * duration).toLong()); controlsInteraction++ }
+                    )
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("${progress / 60000}:${"%02d".format(progress / 1000 % 60)}", color = Color.White)
+                        Text("${duration / 60000}:${"%02d".format(duration / 1000 % 60)}", color = Color.White)
+                    }
+                    Row(
+                        Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = {
+                            player.seekTo((player.currentPosition - seekSeconds * 1000).coerceAtLeast(0))
+                            controlsInteraction++
+                        }) { Icon(Icons.Default.Replay10, "Seek backward", tint = Color.White) }
+                        IconButton(onClick = { if (player.isPlaying) player.pause() else player.play(); controlsInteraction++ }) {
+                            Icon(if (playing) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
+                                "Play or pause", Modifier.size(54.dp), tint = purple)
+                        }
+                        IconButton(onClick = { player.seekTo(player.currentPosition + seekSeconds * 1000); controlsInteraction++ }) {
+                            Icon(Icons.Default.Forward10, "Seek forward", tint = Color.White)
+                        }
+                        TextButton(onClick = {
+                            seekSeconds = if (seekSeconds == 10L) 30L else 10L
+                            controlsInteraction++
+                        }) { Text("${seekSeconds}s") }
+                    }
+                } else if (locked) Box(
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    TextButton(onClick = { locked = false; controlsVisible = true; controlsInteraction++ }) {
+                        Text("Unlock controls")
+                    }
+                }
             }
         } else {
             Column(Modifier.fillMaxSize().background(dark).padding(16.dp)) {
