@@ -920,8 +920,8 @@ Full license texts and dependency notices should be made available on the develo
 private fun SettingsToggle(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text(title, color = foreground)
-            Text(subtitle, color = secondaryText, fontSize = 12.sp)
+            Text(title, color = MaterialTheme.colorScheme.onSurface)
+            Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
         }
         Switch(checked = checked, onCheckedChange = onChange)
     }
