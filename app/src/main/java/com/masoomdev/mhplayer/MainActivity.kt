@@ -139,6 +139,22 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
     var scrollToLast by remember { mutableStateOf(prefs.getBoolean("list_scroll_last", false)) }
     var floatingResume by remember { mutableStateOf(prefs.getBoolean("list_floating_resume", false)) }
     var newTagDays by remember { mutableIntStateOf(prefs.getInt("list_new_days", 7)) }
+    var includeAndroidMedia by remember { mutableStateOf(prefs.getBoolean("include_android_media", false)) }
+    var themeChoice by remember { mutableStateOf(prefs.getString("ui_theme", "Purple") ?: "Purple") }
+    val dark = when (themeChoice) { "White" -> Color(0xFFF8F9FD); "Dark" -> Color(0xFF111318); else -> Color(0xFF0D1020) }
+    val purple = when (themeChoice) { "White" -> Color(0xFF4259A7); "Dark" -> Color(0xFF8EA3FF); else -> Color(0xFF9B72FF) }
+    val foreground = if (themeChoice == "White") Color(0xFF151827) else Color.White
+    val secondaryText = if (themeChoice == "White") Color(0xFF565D70) else Color.LightGray
+    SideEffect {
+        val barColor = if (themeChoice == "White") android.graphics.Color.rgb(248,249,253)
+            else if (themeChoice == "Dark") android.graphics.Color.rgb(17,19,24)
+            else android.graphics.Color.rgb(13,16,32)
+        activity.window.statusBarColor = barColor
+        activity.window.navigationBarColor = barColor
+        @Suppress("DEPRECATION")
+        activity.window.decorView.systemUiVisibility = if (themeChoice == "White")
+            android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0
+    }
     var showHidden by remember { mutableStateOf(prefs.getBoolean("list_show_hidden", false)) }
     var includedFolders by remember { mutableStateOf(prefs.getString("list_folders", "") ?: "") }
     var foldersDialog by remember { mutableStateOf(false) }
@@ -359,16 +375,19 @@ private fun PlayerApp(activity: ComponentActivity, initialUri: Uri?) {
         confirmButton = { TextButton(onClick = { equalizerOpen = false }) { Text("Done") } }
     )
     if (exitPrompt) AlertDialog(onDismissRequest = { exitPrompt = false }, title = { Text("Exit MH Player?") }, text = { Text("Are you sure you want to close MH Player?") }, confirmButton = { TextButton(onClick = { activity.finish() }) { Text("Exit app") } }, dismissButton = { TextButton(onClick = { exitPrompt = false }) { Text("Stay in app") } })
-    MaterialTheme(colorScheme = darkColorScheme(primary = purple, background = dark, surface = Color(0xFF1A2034))) {
+    MaterialTheme(colorScheme = if (themeChoice == "White")
+        lightColorScheme(primary = purple, background = dark, surface = Color.White, onBackground = foreground, onSurface = foreground)
+        else darkColorScheme(primary = purple, background = dark,
+            surface = if (themeChoice == "Dark") Color(0xFF20232A) else Color(0xFF1A2034))) {
         if (splash) {
             Box(Modifier.fillMaxSize().background(dark), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.PlayCircle, null, Modifier.size(86.dp), tint = purple); Spacer(Modifier.height(12.dp)); Text("MH PLAYER", fontSize = 32.sp, color = Color.White); Text("Your media. Your device.", color = Color.LightGray) }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.PlayCircle, null, Modifier.size(86.dp), tint = purple); Spacer(Modifier.height(12.dp)); Text("MH PLAYER", fontSize = 32.sp, color = foreground); Text("Your media. Your device.", color = secondaryText) }
             }
         } else if (infoPage != null) {
             Column(Modifier.fillMaxSize().background(dark).padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { infoPage = null }) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White) }
-                    Text(infoPage ?: "", fontSize = 24.sp, color = Color.White)
+                    IconButton(onClick = { infoPage = null }) { Icon(Icons.Default.ArrowBack, "Back", tint = foreground) }
+                    Text(infoPage ?: "", fontSize = 24.sp, color = foreground)
                 }
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                     Text(
@@ -425,7 +444,7 @@ Copyright and license notices for dependencies remain with their respective owne
 
 Full license texts and dependency notices should be made available on the developer website or in the release package before publication."""
                         },
-                        color = Color.White,
+                        color = foreground,
                         lineHeight = 24.sp,
                         modifier = Modifier.padding(top = 16.dp, bottom = 24.dp)
                     )
@@ -435,9 +454,9 @@ Full license texts and dependency notices should be made available on the develo
             Column(Modifier.fillMaxSize().background(dark).padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { listSettingsOpen = false }) {
-                        Icon(Icons.Default.ArrowBack, "Back", tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, "Back", tint = foreground)
                     }
-                    Text("List", fontSize = 26.sp, color = Color.White)
+                    Text("List", fontSize = 26.sp, color = foreground)
                 }
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                     Text("APPEARANCE", color = purple, modifier = Modifier.padding(top = 20.dp))
@@ -450,7 +469,7 @@ Full license texts and dependency notices should be made available on the develo
                     SettingsToggle("Floating button", "Show a shortcut to resume the last played media in the library.", floatingResume) {
                         floatingResume = it; prefs.edit().putBoolean("list_floating_resume", it).apply()
                     }
-                    Text("Period tagged as NEW", color = Color.White, modifier = Modifier.padding(top = 16.dp))
+                    Text("Period tagged as NEW", color = foreground, modifier = Modifier.padding(top = 16.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(0, 1, 7, 30).forEach { days ->
                             FilterChip(selected = newTagDays == days, onClick = {
@@ -461,10 +480,16 @@ Full license texts and dependency notices should be made available on the develo
                     Text("SCAN", color = purple, modifier = Modifier.padding(top = 24.dp))
                     Row(Modifier.fillMaxWidth().clickable { foldersDialog = true }.padding(vertical = 16.dp)) {
                         Column(Modifier.weight(1f)) {
-                            Text("Folders", color = Color.White)
-                            Text("Choose which media folders appear in the library.", color = Color.LightGray, fontSize = 12.sp)
+                            Text("Folders", color = foreground)
+                            Text("Choose which media folders appear in the library.", color = secondaryText, fontSize = 12.sp)
                         }
                         Icon(Icons.Default.ChevronRight, null, tint = purple)
+                    }
+                    SettingsToggle("Include Android app media",
+                        "Off by default. Hide WhatsApp and other app media under Android/ from the library.",
+                        includeAndroidMedia) {
+                        includeAndroidMedia = it
+                        prefs.edit().putBoolean("include_android_media", it).apply()
                     }
                     SettingsToggle("Show hidden files and folders",
                         "Include media with names or folder paths starting with a dot, if Android exposes them.",
@@ -472,7 +497,7 @@ Full license texts and dependency notices should be made available on the develo
                         showHidden = it; prefs.edit().putBoolean("list_show_hidden", it).apply()
                     }
                     Text("Android MediaStore normally excludes .nomedia folders. System media scanning rules still apply.",
-                        color = Color.LightGray, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
+                        color = secondaryText, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
                 }
             }
             if (foldersDialog) {
@@ -515,12 +540,12 @@ Full license texts and dependency notices should be made available on the develo
         } else if (settingsOpen) {
             Column(Modifier.fillMaxSize().background(dark).padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { settingsOpen = false }) { Icon(Icons.Default.ArrowBack, "Back", tint = Color.White) }
-                    Text("Settings", fontSize = 26.sp, color = Color.White)
+                    IconButton(onClick = { settingsOpen = false }) { Icon(Icons.Default.ArrowBack, "Back", tint = foreground) }
+                    Text("Settings", fontSize = 26.sp, color = foreground)
                 }
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                     Text("PLAYBACK", color = purple, modifier = Modifier.padding(top = 20.dp))
-                    Text("Controls auto-hide: $autoHideSeconds seconds", color = Color.White)
+                    Text("Controls auto-hide: $autoHideSeconds seconds", color = foreground)
                     Slider(value = autoHideSeconds.toFloat(), onValueChange = { autoHideSeconds = it.toInt().coerceIn(3, 15); prefs.edit().putInt("auto_hide", autoHideSeconds).apply() }, valueRange = 3f..15f, steps = 11)
                     SettingsToggle("Resume playback", "Continue from saved position", resumePlayback) { resumePlayback = it; prefs.edit().putBoolean("resume", it).apply() }
                     SettingsToggle("Auto-play", "Play immediately on opening a file", autoPlay) { autoPlay = it; prefs.edit().putBoolean("autoplay", it).apply() }
@@ -533,18 +558,27 @@ Full license texts and dependency notices should be made available on the develo
                     SettingsToggle("Volume swipe", "Right side vertical gesture", volumeGesture) { volumeGesture = it; prefs.edit().putBoolean("volume_gesture", it).apply() }
                     Text("SEEK", color = purple, modifier = Modifier.padding(top = 20.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Skip duration", color = Color.White, modifier = Modifier.weight(1f))
+                        Text("Skip duration", color = foreground, modifier = Modifier.weight(1f))
                         FilterChip(selected = seekSeconds == 10L, onClick = { seekSeconds = 10L; prefs.edit().putLong("seek_seconds", 10L).apply() }, label = { Text("10s") })
                         Spacer(Modifier.width(8.dp))
                         FilterChip(selected = seekSeconds == 30L, onClick = { seekSeconds = 30L; prefs.edit().putLong("seek_seconds", 30L).apply() }, label = { Text("30s") })
                     }
+                    Text("APPEARANCE", color = purple, modifier = Modifier.padding(top = 20.dp))
+                    Text("Theme", color = foreground)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("White", "Dark", "Purple").forEach { option ->
+                            FilterChip(selected = themeChoice == option, onClick = {
+                                themeChoice = option; prefs.edit().putString("ui_theme", option).apply()
+                            }, label = { Text(option) })
+                        }
+                    }
                     Text("LIBRARY", color = purple, modifier = Modifier.padding(top = 20.dp))
                     Row(Modifier.fillMaxWidth().clickable { listSettingsOpen = true }.padding(vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically) {
-                        Text("List", color = Color.White, modifier = Modifier.weight(1f))
+                        Text("List", color = foreground, modifier = Modifier.weight(1f))
                         Icon(Icons.Default.ChevronRight, "List settings", tint = purple)
                     }
-                    Text("Library sorting and layout can be changed from the library view menu.", color = Color.LightGray)
+                    Text("Library sorting and layout can be changed from the library view menu.", color = secondaryText)
                     Text("ABOUT & LEGAL", color = purple, modifier = Modifier.padding(top = 20.dp, bottom = 8.dp))
                     TextButton(onClick = {
                         val url = "https://masoomdev-website.vercel.app/apps/mh-player/privacy/"
@@ -556,12 +590,12 @@ Full license texts and dependency notices should be made available on the develo
                     }) { Text("MH Player website ↗") }
                     listOf("About", "Privacy Policy", "Terms & Conditions", "Open Source Licenses").forEach { page ->
                         Row(Modifier.fillMaxWidth().clickable { infoPage = page }.padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(page, color = Color.White, modifier = Modifier.weight(1f))
-                            Icon(Icons.Default.ChevronRight, null, tint = Color.LightGray)
+                            Text(page, color = foreground, modifier = Modifier.weight(1f))
+                            Icon(Icons.Default.ChevronRight, null, tint = secondaryText)
                         }
                         HorizontalDivider(color = Color(0xFF30364C))
                     }
-                    Text("MH Player • Offline • ExoPlayer", color = Color.LightGray, modifier = Modifier.padding(top = 24.dp))
+                    Text("MH Player • Offline • ExoPlayer", color = secondaryText, modifier = Modifier.padding(top = 24.dp))
                 }
             }
         } else if (selected != null) {
@@ -624,7 +658,7 @@ Full license texts and dependency notices should be made available on the develo
                             Column(Modifier.padding(horizontal = 24.dp, vertical = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                 Icon(if (gestureBrightness) Icons.Default.Brightness6 else Icons.Default.VolumeUp, null, tint = purple)
                                 Spacer(Modifier.height(8.dp))
-                                Text((if (gestureBrightness) "Brightness " else "Volume ") + "${(gestureLevel * 100).toInt()}%", color = Color.White)
+                                Text((if (gestureBrightness) "Brightness " else "Volume ") + "${(gestureLevel * 100).toInt()}%", color = foreground)
                                 Spacer(Modifier.height(8.dp))
                                 LinearProgressIndicator(progress = { gestureLevel }, modifier = Modifier.width(130.dp))
                             }
@@ -637,9 +671,9 @@ Full license texts and dependency notices should be made available on the develo
                 ) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = { if (locked) locked = false else closePlayer() }) {
-                            Icon(Icons.Default.ArrowBack, "Back", tint = Color.White)
+                            Icon(Icons.Default.ArrowBack, "Back", tint = foreground)
                         }
-                        Text(selected?.title ?: "", Modifier.weight(1f), color = Color.White, maxLines = 1)
+                        Text(selected?.title ?: "", Modifier.weight(1f), color = foreground, maxLines = 1)
                         IconButton(onClick = { locked = !locked; controlsInteraction++ }) {
                             Icon(if (locked) Icons.Default.Lock else Icons.Default.LockOpen, "Lock controls", tint = purple)
                         }
@@ -688,8 +722,8 @@ Full license texts and dependency notices should be made available on the develo
                         onValueChange = { if (duration > 0) player.seekTo((it * duration).toLong()); controlsInteraction++ }
                     )
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("${progress / 60000}:${"%02d".format(progress / 1000 % 60)}", color = Color.White)
-                        Text("${duration / 60000}:${"%02d".format(duration / 1000 % 60)}", color = Color.White)
+                        Text("${progress / 60000}:${"%02d".format(progress / 1000 % 60)}", color = foreground)
+                        Text("${duration / 60000}:${"%02d".format(duration / 1000 % 60)}", color = foreground)
                     }
                     Row(
                         Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly,
@@ -698,13 +732,13 @@ Full license texts and dependency notices should be made available on the develo
                         IconButton(onClick = {
                             player.seekTo((player.currentPosition - seekSeconds * 1000).coerceAtLeast(0))
                             controlsInteraction++
-                        }) { Icon(Icons.Default.Replay10, "Seek backward", tint = Color.White) }
+                        }) { Icon(Icons.Default.Replay10, "Seek backward", tint = foreground) }
                         IconButton(onClick = { if (player.isPlaying) player.pause() else player.play(); controlsInteraction++ }) {
                             Icon(if (playing) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
                                 "Play or pause", Modifier.size(54.dp), tint = purple)
                         }
                         IconButton(onClick = { player.seekTo(player.currentPosition + seekSeconds * 1000); controlsInteraction++ }) {
-                            Icon(Icons.Default.Forward10, "Seek forward", tint = Color.White)
+                            Icon(Icons.Default.Forward10, "Seek forward", tint = foreground)
                         }
                         TextButton(onClick = {
                             seekSeconds = if (seekSeconds == 10L) 30L else 10L
@@ -724,10 +758,10 @@ Full license texts and dependency notices should be made available on the develo
             Column(Modifier.fillMaxSize().background(dark).padding(16.dp)) {
                 Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("MH Player", fontSize = 30.sp, color = Color.White, modifier = Modifier.weight(1f))
+                    Text("MH Player", fontSize = 30.sp, color = foreground, modifier = Modifier.weight(1f))
                     IconButton(onClick = { settingsOpen = true }) { Icon(Icons.Default.Settings, "Settings", tint = purple) }
                 }
-                Text("Offline video & audio", color = Color.LightGray)
+                Text("Offline video & audio", color = secondaryText)
                 Spacer(Modifier.height(20.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     FilterChip(selected = showVideo, onClick = { showVideo = true; currentFolder = null }, label = { Text("Videos") })
@@ -795,12 +829,13 @@ Full license texts and dependency notices should be made available on the develo
                 if (currentFolder != null) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = { currentFolder = null }) { Icon(Icons.Default.ArrowBack, "Folders", tint = purple) }
-                        Text(currentFolder ?: "", color = Color.White, maxLines = 2)
+                        Text(currentFolder ?: "", color = foreground, maxLines = 2)
                     }
-                } else Text(if (libraryView == "Folders") "Folders" else "All files", color = Color.White, fontSize = 20.sp)
+                } else Text(if (libraryView == "Folders") "Folders" else "All files", color = foreground, fontSize = 20.sp)
                 if (libraryLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
                 val filtered = media.filter {
                     it.video == showVideo &&
+                    (includeAndroidMedia || !it.folder.trimStart('/').startsWith("Android/", ignoreCase = true)) &&
                     (includedFolders.isBlank() || it.folder in includedFolders.split("|")) &&
                     (showHidden || (!it.title.startsWith(".") && it.folder.split("/").none { part -> part.startsWith(".") })) &&
                     (searchText.isBlank() || it.title.contains(searchText, true) || it.folder.contains(searchText, true))
@@ -814,7 +849,7 @@ Full license texts and dependency notices should be made available on the develo
                     }
                 }
                 if (filtered.isEmpty()) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Text("No media found. Tap Open file to browse.", color = Color.LightGray)
+                    Text("No media found. Tap Open file to browse.", color = secondaryText)
                 } else if (currentFolder == null && libraryView == "Folders") {
                     LazyColumn {
                         items(folders.entries.sortedBy { it.key }) { folder ->
@@ -822,13 +857,13 @@ Full license texts and dependency notices should be made available on the develo
                                 Icon(Icons.Default.Folder, null, tint = purple, modifier = Modifier.size(36.dp))
                                 Spacer(Modifier.width(14.dp))
                                 Column(Modifier.weight(1f)) {
-                                    Text(folder.key.substringAfterLast('/').ifBlank { "Device storage" }, color = Color.White, fontSize = 17.sp)
-                                    Text(folder.key + " • " + folder.value.size + " files", color = Color.LightGray, fontSize = 12.sp, maxLines = 2)
+                                    Text(folder.key.substringAfterLast('/').ifBlank { "Device storage" }, color = foreground, fontSize = 17.sp)
+                                    Text(folder.key + " • " + folder.value.size + " files", color = secondaryText, fontSize = 12.sp, maxLines = 2)
                                     if (markLastPlayed && folder.value.any { it.uri.toString() == lastPlayedUri }) {
                                         Text("Last played", color = purple, fontSize = 12.sp)
                                     }
                                 }
-                                Icon(Icons.Default.ChevronRight, null, tint = Color.LightGray)
+                                Icon(Icons.Default.ChevronRight, null, tint = secondaryText)
                             }
                             HorizontalDivider(color = Color(0xFF30364C))
                         }
@@ -852,10 +887,10 @@ Full license texts and dependency notices should be made available on the develo
                                     Icon(if (item.video) Icons.Default.Movie else Icons.Default.MusicNote,
                                         null, Modifier.size(46.dp), tint = purple)
                                     Spacer(Modifier.height(8.dp))
-                                    Text(item.title, color = Color.White, maxLines = 2)
+                                    Text(item.title, color = foreground, maxLines = 2)
                                     if (markLastPlayed && item.uri.toString() == lastPlayedUri) Text("Last played", color = purple, fontSize = 12.sp)
                                     if (newTagDays > 0 && item.dateAdded > 0 && System.currentTimeMillis() / 1000 - item.dateAdded <= newTagDays * 86400L) Text("NEW", color = purple, fontSize = 11.sp)
-                                    Text("${item.duration / 60000} min", color = Color.LightGray, fontSize = 12.sp)
+                                    Text("${item.duration / 60000} min", color = secondaryText, fontSize = 12.sp)
                                 }
                             }
                         }
@@ -867,8 +902,8 @@ Full license texts and dependency notices should be made available on the develo
                                     Icon(if (item.video) Icons.Default.Movie else Icons.Default.MusicNote, null, tint = purple)
                                     Spacer(Modifier.width(14.dp))
                                     Column {
-                                        Text(item.title, color = Color.White, maxLines = 2)
-                                        Text("${item.duration / 60000} min", color = Color.LightGray, fontSize = 12.sp)
+                                        Text(item.title, color = foreground, maxLines = 2)
+                                        Text("${item.duration / 60000} min", color = secondaryText, fontSize = 12.sp)
                                     }
                                 }
                                 HorizontalDivider(color = Color(0xFF30364C))
@@ -885,8 +920,8 @@ Full license texts and dependency notices should be made available on the develo
 private fun SettingsToggle(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text(title, color = Color.White)
-            Text(subtitle, color = Color.LightGray, fontSize = 12.sp)
+            Text(title, color = foreground)
+            Text(subtitle, color = secondaryText, fontSize = 12.sp)
         }
         Switch(checked = checked, onCheckedChange = onChange)
     }
