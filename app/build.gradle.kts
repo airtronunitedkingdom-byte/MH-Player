@@ -2,7 +2,7 @@ plugins { id("com.android.application"); id("org.jetbrains.kotlin.android"); id(
 android {
  namespace = "com.masoomdev.mhplayer"
  compileSdk = 36
- defaultConfig { applicationId = "com.masoomdev.mhplayer"; minSdk = 24; targetSdk = 36; versionCode = 8; versionName = "1.0.7" }
+ defaultConfig { applicationId = "com.masoomdev.mhplayer"; minSdk = 24; targetSdk = 36; versionCode = 9; versionName = "1.0.8" }
  val releaseStoreFile = System.getenv("MH_KEYSTORE_PATH")
  signingConfigs {
   if (!releaseStoreFile.isNullOrBlank()) {
