@@ -5,6 +5,12 @@ import android.content.ContentUris
 import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.media.MediaMetadataRetriever
+import android.graphics.Bitmap
+import android.util.LruCache
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import android.util.Size
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
@@ -71,24 +77,41 @@ private val dark = Color(0xFF0D1020)
 private val purple = Color(0xFF9B72FF)
 private data class LocalMedia(val title: String, val uri: Uri, val video: Boolean, val duration: Long, val folder: String, val size: Long, val dateAdded: Long)
 
+// Keep decoded previews bounded; only visible lazy-list items request a thumbnail.
+private val thumbnailCache = object : LruCache<String, Bitmap>(12 * 1024 * 1024) {
+    override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
+}
+private val thumbnailSlots = Semaphore(3)
+
 @Composable
 private fun MediaThumbnail(item: LocalMedia, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val bitmap by produceState<android.graphics.Bitmap?>(initialValue = null, item.uri) {
-        value = if (!item.video || item.uri.scheme != "content") null else withContext(Dispatchers.IO) {
-            try {
-                if (Build.VERSION.SDK_INT >= 29) context.contentResolver.loadThumbnail(item.uri, Size(240, 160), null)
-                else {
-                    val retriever = MediaMetadataRetriever()
-                    try {
-                        retriever.setDataSource(context, item.uri)
-                        retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                    } finally { retriever.release() }
+    val key = item.uri.toString()
+    val bitmap by produceState<Bitmap?>(initialValue = thumbnailCache.get(key), key, item.video) {
+        if (!item.video || item.uri.scheme != "content") {
+            value = null
+        } else {
+            value = thumbnailCache.get(key) ?: withContext(Dispatchers.IO) {
+                thumbnailSlots.withPermit {
+                    currentCoroutineContext().ensureActive()
+                    thumbnailCache.get(key) ?: try {
+                        val loaded = if (Build.VERSION.SDK_INT >= 29) {
+                            context.contentResolver.loadThumbnail(item.uri, Size(240, 160), null)
+                        } else {
+                            val retriever = MediaMetadataRetriever()
+                            try {
+                                retriever.setDataSource(context, item.uri)
+                                retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                                    ?.let { Bitmap.createScaledBitmap(it, 240, 160, true).also { small -> if (small !== it) it.recycle() } }
+                            } finally { retriever.release() }
+                        }
+                        loaded?.also { thumbnailCache.put(key, it) }
+                    } catch (_: Exception) { null }
                 }
-            } catch (_: Exception) { null }
+            }
         }
     }
-    if (bitmap != null) Image(bitmap!!.asImageBitmap(), contentDescription = "Video preview", modifier = modifier, contentScale = ContentScale.Crop)
+    if (bitmap != null && bitmap?.isRecycled == false) Image(bitmap!!.asImageBitmap(), contentDescription = "Video preview", modifier = modifier, contentScale = ContentScale.Crop)
     else Icon(if (item.video) Icons.Default.Movie else Icons.Default.MusicNote, null, modifier = modifier, tint = Color(0xFF9B72FF))
 }
 
@@ -107,7 +130,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private fun scanMedia(activity: ComponentActivity): List<LocalMedia> {
+private suspend fun scanMedia(activity: ComponentActivity): List<LocalMedia> {
     val output = mutableListOf<LocalMedia>()
     val permissionVideo = Build.VERSION.SDK_INT < 33 || activity.checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED
     val permissionAudio = Build.VERSION.SDK_INT < 33 || activity.checkSelfPermission(Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED
@@ -123,7 +146,10 @@ private fun scanMedia(activity: ComponentActivity): List<LocalMedia> {
                 val folderIndex = cursor.getColumnIndex(MediaStore.MediaColumns.RELATIVE_PATH)
                 val sizeIndex = cursor.getColumnIndex(MediaStore.MediaColumns.SIZE)
                 val dateIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DATE_ADDED)
-                while (cursor.moveToNext()) output.add(LocalMedia(cursor.getString(nameIndex) ?: "Unknown", ContentUris.withAppendedId(base, cursor.getLong(idIndex)), video, cursor.getLong(durationIndex), if (folderIndex >= 0) (cursor.getString(folderIndex) ?: "Other").trimEnd('/') else "Device storage", if (sizeIndex >= 0) cursor.getLong(sizeIndex) else 0L, if (dateIndex >= 0) cursor.getLong(dateIndex) else 0L))
+                while (cursor.moveToNext()) {
+                    currentCoroutineContext().ensureActive()
+                    output.add(LocalMedia(cursor.getString(nameIndex) ?: "Unknown", ContentUris.withAppendedId(base, cursor.getLong(idIndex)), video, cursor.getLong(durationIndex), if (folderIndex >= 0) (cursor.getString(folderIndex) ?: "Other").trimEnd('/') else "Device storage", if (sizeIndex >= 0) cursor.getLong(sizeIndex) else 0L, if (dateIndex >= 0) cursor.getLong(dateIndex) else 0L))
+                }
             }
         } catch (_: Exception) { }
     }
@@ -230,7 +256,18 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     var foldersDialog by remember { mutableStateOf(false) }
     var lastPlayedUri by remember { mutableStateOf(prefs.getString("last_played_uri", "") ?: "") }
     val scope = rememberCoroutineScope()
-    fun refreshMedia() { scope.launch { libraryLoading = true; media = withContext(Dispatchers.IO) { scanMedia(activity) }; libraryLoading = false } }
+    var scanJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    fun refreshMedia() {
+        scanJob?.cancel()
+        scanJob = scope.launch {
+            libraryLoading = true
+            try {
+                media = withContext(Dispatchers.IO) { scanMedia(activity) }
+            } finally {
+                libraryLoading = false
+            }
+        }
+    }
     var locked by remember { mutableStateOf(false) }
     var controlsVisible by remember { mutableStateOf(true) }
     var controlsInteraction by remember { mutableIntStateOf(0) }
@@ -350,11 +387,10 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     }
     val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { refreshMedia() }
     LaunchedEffect(Unit) {
-        delay(1200)
         splash = false
         val needed = if (Build.VERSION.SDK_INT >= 33) arrayOf(Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.READ_MEDIA_AUDIO) else arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
         val missing = needed.filter { activity.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
-        if (missing.isNotEmpty()) permissions.launch(missing.toTypedArray()) else media = withContext(Dispatchers.IO) { scanMedia(activity) }
+        if (missing.isNotEmpty()) permissions.launch(missing.toTypedArray()) else refreshMedia()
         if (initialUri != null) selected = LocalMedia("Opened file", initialUri, true, 0L, "Opened files", 0L, 0L)
     }
     LaunchedEffect(selected?.uri) {
