@@ -299,6 +299,7 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
             controlsVisible = false
         }
     }
+    var lastRecoveryUri by remember { mutableStateOf<String?>(null) }
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) { trackRevision++ }
@@ -308,10 +309,20 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
             }
             override fun onPlaybackStateChanged(playbackState: Int) {
                 trackRevision++
-                if (playbackState == Player.STATE_ENDED && playlistOnly && selected != null) {
+                if (playbackState == Player.STATE_ENDED && playlistOnly && selected != null && !player.hasNextMediaItem()) {
                     val queue = media.filter { it.uri.toString() in playlistUris && it.video == showVideo }
                     val index = queue.indexOfFirst { it.uri == selected?.uri }
                     if (index >= 0 && index + 1 < queue.size) selected = queue[index + 1]
+                }
+            }
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                val uri = player.currentMediaItem?.localConfiguration?.uri?.toString() ?: return
+                val recoverable = error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_UNSPECIFIED
+                if (recoverable && lastRecoveryUri != uri) {
+                    lastRecoveryUri = uri
+                    player.prepare()
                 }
             }
             override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
@@ -397,6 +408,7 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     }
     LaunchedEffect(selected?.uri) {
         val item = selected ?: return@LaunchedEffect
+        if (lastRecoveryUri != item.uri.toString()) lastRecoveryUri = null
         pinchZoom = 1f
         holdSpeedActive = false
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
