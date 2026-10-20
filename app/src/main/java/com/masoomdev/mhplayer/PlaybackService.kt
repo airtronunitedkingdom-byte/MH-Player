@@ -31,6 +31,28 @@ class PlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
     private val channelId = "mh_playback"
     private val notificationId = 1001
+    private fun actionIntent(action: String, code: Int): PendingIntent =
+        PendingIntent.getService(this, code, Intent(this, PlaybackService::class.java).setAction(action),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val player = PlaybackHolder.player(this)
+        when (intent?.action) {
+            "mh.PREV" -> if (player.hasPreviousMediaItem()) player.seekToPreviousMediaItem() else player.seekTo(0)
+            "mh.NEXT" -> if (player.hasNextMediaItem()) player.seekToNextMediaItem()
+            "mh.TOGGLE" -> if (player.isPlaying) player.pause() else player.play()
+            "mh.STOP" -> {
+                player.stop()
+                player.clearMediaItems()
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return START_NOT_STICKY
+            }
+        }
+        updateNotification()
+        return START_NOT_STICKY
+    }
+
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) { updateNotification() }
         override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) { updateNotification() }
@@ -53,7 +75,13 @@ class PlaybackService : MediaSessionService() {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(player.isPlaying)
             .setOnlyAlertOnce(true)
-            .setStyle(androidx.media3.session.MediaStyleNotificationHelper.MediaStyle(session!!))
+            .addAction(android.R.drawable.ic_media_previous, "Previous", actionIntent("mh.PREV", 1))
+            .addAction(if (player.isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
+                if (player.isPlaying) "Pause" else "Play", actionIntent("mh.TOGGLE", 2))
+            .addAction(android.R.drawable.ic_media_next, "Next", actionIntent("mh.NEXT", 3))
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", actionIntent("mh.STOP", 4))
+            .setStyle(androidx.media3.session.MediaStyleNotificationHelper.MediaStyle(session!!)
+                .setShowActionsInCompactView(0, 1, 2))
             .build()
         startForeground(notificationId, notification)
     }
