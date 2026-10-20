@@ -44,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -159,19 +160,20 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     var includeAndroidMedia by remember { mutableStateOf(prefs.getBoolean("include_android_media", false)) }
     var videoLayout by remember { mutableStateOf(prefs.getString("video_layout", "Classic") ?: "Classic") }
     var audioLayout by remember { mutableStateOf(prefs.getString("audio_layout", "Classic") ?: "Classic") }
-    var themeChoice by remember { mutableStateOf(prefs.getString("ui_theme", "Purple") ?: "Purple") }
-    val dark = when (themeChoice) { "White" -> Color(0xFFF8F9FD); "Dark" -> Color(0xFF111318); else -> Color(0xFF0D1020) }
-    val purple = when (themeChoice) { "White" -> Color(0xFF4259A7); "Dark" -> Color(0xFF8EA3FF); else -> Color(0xFF9B72FF) }
-    val foreground = if (themeChoice == "White") Color(0xFF151827) else Color.White
-    val secondaryText = if (themeChoice == "White") Color(0xFF565D70) else Color.LightGray
+    var themeChoice by remember { mutableStateOf(prefs.getString("ui_theme", "System") ?: "System") }
+    val lightTheme = themeChoice == "White" || (themeChoice == "System" && !isSystemInDarkTheme())
+    val dark = when { lightTheme -> Color(0xFFF8F9FD); themeChoice == "Dark" || themeChoice == "System" -> Color(0xFF111318); else -> Color(0xFF0D1020) }
+    val purple = when { lightTheme -> Color(0xFF4259A7); themeChoice == "Dark" || themeChoice == "System" -> Color(0xFF8EA3FF); else -> Color(0xFF9B72FF) }
+    val foreground = if (lightTheme) Color(0xFF151827) else Color.White
+    val secondaryText = if (lightTheme) Color(0xFF565D70) else Color.LightGray
     SideEffect {
-        val barColor = if (themeChoice == "White") android.graphics.Color.rgb(248,249,253)
+        val barColor = if (lightTheme) android.graphics.Color.rgb(248,249,253)
             else if (themeChoice == "Dark") android.graphics.Color.rgb(17,19,24)
             else android.graphics.Color.rgb(13,16,32)
         activity.window.statusBarColor = barColor
         activity.window.navigationBarColor = barColor
         @Suppress("DEPRECATION")
-        activity.window.decorView.systemUiVisibility = if (themeChoice == "White")
+        activity.window.decorView.systemUiVisibility = if (lightTheme)
             android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0
     }
     var showHidden by remember { mutableStateOf(prefs.getBoolean("list_show_hidden", false)) }
@@ -472,7 +474,7 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     )
     if (exitPrompt) AlertDialog(onDismissRequest = { exitPrompt = false }, title = { Text("Exit MH Player?") }, text = { Text("Are you sure you want to close MH Player?") }, confirmButton = { TextButton(onClick = { activity.finish() }) { Text("Exit app") } }, dismissButton = { TextButton(onClick = { exitPrompt = false }) { Text("Stay in app") } })
     // Keep the active player mounted while changing its settings.
-    MaterialTheme(colorScheme = if (themeChoice == "White")
+    MaterialTheme(colorScheme = if (lightTheme)
         lightColorScheme(primary = purple, background = dark, surface = Color.White, onBackground = foreground, onSurface = foreground)
         else darkColorScheme(primary = purple, background = dark,
             surface = if (themeChoice == "Dark") Color(0xFF20232A) else Color(0xFF1A2034))) {
@@ -526,7 +528,7 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
                         }
                         Text("THEME", color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 12.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            listOf("White", "Dark", "Purple").forEach { option ->
+                            listOf("System", "White", "Dark", "Purple").forEach { option ->
                                 FilterChip(selected = themeChoice == option, onClick = {
                                     themeChoice = option; prefs.edit().putString("ui_theme", option).apply()
                                 }, label = { Text(option) })
@@ -730,7 +732,7 @@ Full license texts and dependency notices should be made available on the develo
                     Text("APPEARANCE", color = purple, modifier = Modifier.padding(top = 20.dp))
                     Text("Theme", color = foreground)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("White", "Dark", "Purple").forEach { option ->
+                        listOf("System", "White", "Dark", "Purple").forEach { option ->
                             FilterChip(selected = themeChoice == option, onClick = {
                                 themeChoice = option; prefs.edit().putString("ui_theme", option).apply()
                             }, label = { Text(option) })
@@ -1046,14 +1048,23 @@ Full license texts and dependency notices should be made available on the develo
                     Spacer(Modifier.width(12.dp))
                     FilterChip(selected = !showVideo, onClick = { showVideo = false; currentFolder = null }, label = { Text("Audio") })
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { refreshMedia() }) { Text("Refresh") }
-                    TextButton(onClick = { libraryOptions = true }) {
-                        Icon(Icons.Default.Tune, "Library options", tint = purple)
-                        Text("View / Sort")
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { refreshMedia() }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 6.dp)) {
+                        Text("Refresh", maxLines = 1)
                     }
-                    TextButton(onClick = { filePicker.launch(arrayOf("video/*", "audio/*", "application/octet-stream")) }) { Text("Open file") }
-                    TextButton(onClick = { streamDialog = true; streamError = "" }) { Text("Network stream") }
+                    OutlinedButton(onClick = { libraryOptions = true }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 6.dp)) {
+                        Text("View / Sort", maxLines = 1)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { filePicker.launch(arrayOf("video/*", "audio/*", "application/octet-stream")) }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 6.dp)) {
+                        Text("Open file", maxLines = 1)
+                    }
+                    Button(onClick = { streamDialog = true; streamError = "" }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 6.dp)) {
+                        Text("Network stream", maxLines = 1)
+                    }
                 }
                 if (libraryOptions) AlertDialog(
                     onDismissRequest = { libraryOptions = false },
