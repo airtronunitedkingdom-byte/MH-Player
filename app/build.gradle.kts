@@ -2,7 +2,7 @@ plugins { id("com.android.application"); id("org.jetbrains.kotlin.android"); id(
 android {
  namespace = "com.masoomdev.mhplayer"
  compileSdk = 36
- defaultConfig { applicationId = "com.masoomdev.mhplayer"; minSdk = 24; targetSdk = 36; versionCode = 10; versionName = "1.0.9" }
+ defaultConfig { applicationId = "com.masoomdev.mhplayer"; minSdk = 24; targetSdk = 36; versionCode = 11; versionName = "1.0.10" }
  val releaseStoreFile = System.getenv("MH_KEYSTORE_PATH")
  signingConfigs {
   if (!releaseStoreFile.isNullOrBlank()) {
@@ -34,4 +34,5 @@ dependencies {
  implementation("androidx.media3:media3-exoplayer-dash:1.5.1")
  implementation("androidx.media3:media3-ui:1.5.1")
  implementation("androidx.media3:media3-common:1.5.1")
+ implementation("androidx.media3:media3-session:1.5.1")
 }
