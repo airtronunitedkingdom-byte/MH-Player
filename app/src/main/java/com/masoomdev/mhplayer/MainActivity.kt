@@ -78,7 +78,7 @@ private val purple = Color(0xFF9B72FF)
 private data class LocalMedia(val title: String, val uri: Uri, val video: Boolean, val duration: Long, val folder: String, val size: Long, val dateAdded: Long)
 
 // Keep decoded previews bounded; only visible lazy-list items request a thumbnail.
-private val thumbnailCache = object : LruCache<String, Bitmap>(12 * 1024 * 1024) {
+private val thumbnailCache = object : LruCache<String, Bitmap>(8 * 1024 * 1024) {
     override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
 }
 private val thumbnailSlots = Semaphore(3)
@@ -96,17 +96,18 @@ private fun MediaThumbnail(item: LocalMedia, modifier: Modifier = Modifier) {
                     currentCoroutineContext().ensureActive()
                     thumbnailCache.get(key) ?: try {
                         val loaded = if (Build.VERSION.SDK_INT >= 29) {
-                            context.contentResolver.loadThumbnail(item.uri, Size(240, 160), null)
+                            context.contentResolver.loadThumbnail(item.uri, Size(160, 108), null)
                         } else {
                             val retriever = MediaMetadataRetriever()
                             try {
                                 retriever.setDataSource(context, item.uri)
                                 retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                                    ?.let { Bitmap.createScaledBitmap(it, 240, 160, true).also { small -> if (small !== it) it.recycle() } }
+                                    ?.let { Bitmap.createScaledBitmap(it, 160, 108, true).also { small -> if (small !== it) it.recycle() } }
                             } finally { retriever.release() }
                         }
                         loaded?.also { thumbnailCache.put(key, it) }
-                    } catch (_: Exception) { null }
+                    } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                    catch (_: Exception) { null }
                 }
             }
         }
@@ -316,7 +317,8 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
             override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
                 if (selected?.video == true && videoSize.width > 0 && videoSize.height > 0) {
                     val displayWidth = videoSize.width * videoSize.pixelWidthHeightRatio
-                    activity.requestedOrientation = if (displayWidth > videoSize.height) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                    val desired = if (displayWidth > videoSize.height) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                    if (activity.requestedOrientation != desired) activity.requestedOrientation = desired
                 }
             }
         }
