@@ -14,7 +14,7 @@ jobs:
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: '8.11.1'
       - run: gradle :app:assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
@@ -31,7 +31,7 @@ jobs:
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: '8.11.1'
       - name: Validate signing secrets
         env:
           KEYSTORE_BASE64: ${{ secrets.MH_KEYSTORE_BASE64 }}
@@ -50,6 +50,6 @@ jobs:
         run: gradle :app:bundleRelease --no-daemon
       - uses: actions/upload-artifact@v4
         with:
-          name: MH-Player-1.0.0-signed-AAB
+          name: MH-Player-1.0.2-signed-AAB
           path: app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
