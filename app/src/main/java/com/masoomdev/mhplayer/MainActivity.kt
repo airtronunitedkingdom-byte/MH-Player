@@ -190,6 +190,15 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     var pinchZoom by remember { mutableFloatStateOf(1f) }
     var repeatOne by remember { mutableStateOf(false) }
     var seekSeconds by remember { mutableLongStateOf(prefs.getLong("seek_seconds", 10L)) }
+    DisposableEffect(selected != null, pipActive) {
+        val window = activity.window
+        if (selected != null && !pipActive) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        }
+        onDispose { window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN) }
+    }
     var holdSpeedActive by remember { mutableStateOf(false) }
     var seekFeedback by remember { mutableStateOf("") }
     LaunchedEffect(selected?.uri, controlsVisible, controlsInteraction, locked, trackDialog, subtitleDialog, speedMenu, quickSettingsOpen, autoHideSeconds) {
