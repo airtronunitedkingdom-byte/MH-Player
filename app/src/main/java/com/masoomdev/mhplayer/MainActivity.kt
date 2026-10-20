@@ -41,6 +41,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -141,7 +142,7 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     var streamDialog by remember { mutableStateOf(false) }
     var streamUrl by remember { mutableStateOf("") }
     var streamError by remember { mutableStateOf("") }
-    var settingsOpen by remember { mutableStateOf(false) }
+    var settingsOpen by rememberSaveable { mutableStateOf(false) }
     var quickSettingsOpen by remember { mutableStateOf(false) }
     var infoPage by remember { mutableStateOf<String?>(null) }
     var equalizerOpen by remember { mutableStateOf(false) }
@@ -161,6 +162,14 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     var volumeGesture by remember { mutableStateOf(prefs.getBoolean("volume_gesture", true)) }
     var media by remember { mutableStateOf<List<LocalMedia>>(emptyList()) }
     var selected by remember { mutableStateOf<LocalMedia?>(null) }
+    LaunchedEffect(Unit) {
+        val current = player.currentMediaItem
+        val uri = current?.localConfiguration?.uri
+        if (uri != null && player.mediaItemCount > 0) {
+            val title = current.mediaMetadata.title?.toString() ?: "Now playing"
+            selected = LocalMedia(title, uri, true, 0L, "Now playing", 0L, 0L)
+        }
+    }
     DisposableEffect(backgroundPlay, selected?.uri) {
         if (backgroundPlay && selected != null) {
             val intent = Intent(context, PlaybackService::class.java)
@@ -178,14 +187,14 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
         }
     }
     var showVideo by remember { mutableStateOf(true) }
-    var playlistOnly by remember { mutableStateOf(false) }
+    var playlistOnly by rememberSaveable { mutableStateOf(false) }
     var playlistUris by remember { mutableStateOf(prefs.getStringSet("my_playlist", emptySet())?.toSet() ?: emptySet<String>()) }
     fun togglePlaylist(item: LocalMedia) {
         playlistUris = if (item.uri.toString() in playlistUris) playlistUris - item.uri.toString() else playlistUris + item.uri.toString()
         prefs.edit().putStringSet("my_playlist", playlistUris.toSet()).apply()
     }
-    var currentFolder by remember { mutableStateOf<String?>(null) }
-    var searchText by remember { mutableStateOf("") }
+    var currentFolder by rememberSaveable { mutableStateOf<String?>(null) }
+    var searchText by rememberSaveable { mutableStateOf("") }
     var sortMode by remember { mutableStateOf(prefs.getString("sort_mode", "Name") ?: "Name") }
     var sortDescending by remember { mutableStateOf(prefs.getBoolean("sort_desc", false)) }
     var libraryView by remember { mutableStateOf(prefs.getString("library_view", "Folders") ?: "Folders") }
