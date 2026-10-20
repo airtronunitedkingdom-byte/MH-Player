@@ -364,7 +364,8 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         lastPlayedUri = item.uri.toString()
         prefs.edit().putString("last_played_uri", lastPlayedUri).apply()
-        if (player.currentMediaItem?.localConfiguration?.uri != item.uri) {
+        val alreadyPlaying = player.currentMediaItem?.localConfiguration?.uri == item.uri && player.mediaItemCount > 0
+        if (!alreadyPlaying) {
             val queue = if (playlistOnly) media.filter { it.uri.toString() in playlistUris && it.video == showVideo }
                 .let { if (it.any { entry -> entry.uri == item.uri }) it else listOf(item) }
                 else listOf(item)
@@ -378,8 +379,10 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
             player.prepare()
         }
         val saved = prefs.getLong("position_${item.uri}", 0L)
-        if (resumePlayback && saved > 0) player.seekTo(saved)
-        player.playWhenReady = autoPlay
+        if (!alreadyPlaying) {
+            if (resumePlayback && saved > 0) player.seekTo(saved)
+            player.playWhenReady = autoPlay
+        }
         locked = false
         controlsVisible = true
         controlsInteraction++
