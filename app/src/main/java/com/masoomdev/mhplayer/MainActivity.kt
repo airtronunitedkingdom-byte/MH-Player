@@ -161,15 +161,20 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     var volumeGesture by remember { mutableStateOf(prefs.getBoolean("volume_gesture", true)) }
     var media by remember { mutableStateOf<List<LocalMedia>>(emptyList()) }
     var selected by remember { mutableStateOf<LocalMedia?>(null) }
-    LaunchedEffect(backgroundPlay, selected?.uri) {
+    DisposableEffect(backgroundPlay, selected?.uri) {
         if (backgroundPlay && selected != null) {
-            try {
-                androidx.core.content.ContextCompat.startForegroundService(
-                    context, Intent(context, PlaybackService::class.java)
-                )
-            } catch (_: Exception) { /* Android may restrict background service starts */ }
+            val intent = Intent(context, PlaybackService::class.java)
+            val connection = object : android.content.ServiceConnection {
+                override fun onServiceConnected(name: android.content.ComponentName?, binder: android.os.IBinder?) {}
+                override fun onServiceDisconnected(name: android.content.ComponentName?) {}
+            }
+            val bound = try {
+                context.bindService(intent, connection, android.content.Context.BIND_AUTO_CREATE)
+            } catch (_: Exception) { false }
+            onDispose { if (bound) context.unbindService(connection) }
         } else {
             context.stopService(Intent(context, PlaybackService::class.java))
+            onDispose { }
         }
     }
     var showVideo by remember { mutableStateOf(true) }
