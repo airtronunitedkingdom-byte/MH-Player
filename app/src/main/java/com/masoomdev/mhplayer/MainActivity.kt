@@ -714,7 +714,7 @@ Full license texts and dependency notices should be made available on the develo
             Box(Modifier.fillMaxSize().background(if (audioMode) dark else Color.Black)) {
                 Box(Modifier.fillMaxSize()) {
                     if (!audioMode) {
-                        AndroidView(factory = { ctx -> android.view.LayoutInflater.from(ctx).inflate(com.masoomdev.mhplayer.R.layout.mh_video_view, null) as PlayerView }.let { view -> view.player = player; view.useController = false; view }, modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = pinchZoom; scaleY = pinchZoom }, update = { it.resizeMode = resizeChoice })
+                        AndroidView(factory = { ctx -> (android.view.LayoutInflater.from(ctx).inflate(com.masoomdev.mhplayer.R.layout.mh_video_view, null) as PlayerView).apply { this.player = player; useController = false } }, modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = pinchZoom; scaleY = pinchZoom }, update = { it.resizeMode = resizeChoice })
                     } else {
                         Column(
                             Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 85.dp),
