@@ -1235,15 +1235,18 @@ Full license texts and dependency notices should be made available on the develo
                     }
                 } else Text(if (libraryView == "Folders") "Folders" else "All files", color = foreground, fontSize = 20.sp)
                 if (libraryLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
-                val filtered = media.filter {
-                    it.video == showVideo &&
-                    (!playlistOnly || it.uri.toString() in playlistUris) &&
-                    (includeAndroidMedia || !it.folder.trimStart('/').startsWith("Android/", ignoreCase = true)) &&
-                    (includedFolders.isBlank() || it.folder in includedFolders.split("|")) &&
-                    (showHidden || (!it.title.startsWith(".") && it.folder.split("/").none { part -> part.startsWith(".") })) &&
-                    (searchText.isBlank() || it.title.contains(searchText, true) || it.folder.contains(searchText, true))
+                val filtered = remember(media, showVideo, playlistOnly, playlistUris, includeAndroidMedia, includedFolders, showHidden, searchText) {
+                    val allowedFolders = includedFolders.takeIf { it.isNotBlank() }?.split("|")?.toHashSet()
+                    media.filter {
+                        it.video == showVideo &&
+                        (!playlistOnly || it.uri.toString() in playlistUris) &&
+                        (includeAndroidMedia || !it.folder.trimStart('/').startsWith("Android/", ignoreCase = true)) &&
+                        (allowedFolders == null || it.folder in allowedFolders) &&
+                        (showHidden || (!it.title.startsWith(".") && it.folder.split("/").none { part -> part.startsWith(".") })) &&
+                        (searchText.isBlank() || it.title.contains(searchText, true) || it.folder.contains(searchText, true))
+                    }
                 }
-                val folders = filtered.groupBy { it.folder }
+                val folders = remember(filtered) { filtered.groupBy { it.folder } }
                 if (floatingResume && lastPlayedUri.isNotBlank()) {
                     val resumeItem = media.firstOrNull { it.uri.toString() == lastPlayedUri }
                     if (resumeItem != null) TextButton(onClick = { selected = resumeItem }) {
