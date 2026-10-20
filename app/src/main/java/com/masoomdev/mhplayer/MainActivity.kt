@@ -120,6 +120,9 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     DisposableEffect(player) { onDispose { player.release(); activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) } }
     var splash by remember { mutableStateOf(true) }
     var exitPrompt by remember { mutableStateOf(false) }
+    var streamDialog by remember { mutableStateOf(false) }
+    var streamUrl by remember { mutableStateOf("") }
+    var streamError by remember { mutableStateOf("") }
     var settingsOpen by remember { mutableStateOf(false) }
     var quickSettingsOpen by remember { mutableStateOf(false) }
     var infoPage by remember { mutableStateOf<String?>(null) }
@@ -333,6 +336,36 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
         selected?.let { prefs.edit().putLong("position_${it.uri}", player.currentPosition.coerceAtLeast(0L)).apply() }
         player.pause(); if (holdSpeedActive) player.setPlaybackSpeed(playbackSpeed); holdSpeedActive = false; selected = null; locked = false; pinchZoom = 1f; activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED; activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
     BackHandler(enabled = !pipActive) { if (quickSettingsOpen) quickSettingsOpen = false else if (exitPrompt) exitPrompt = false else if (selected != null) { if (locked) locked = false else closePlayer() } else if (infoPage != null) infoPage = null else if (settingsOpen) settingsOpen = false else if (currentFolder != null) currentFolder = null else exitPrompt = true }
+    if (streamDialog) AlertDialog(
+        onDismissRequest = { streamDialog = false },
+        title = { Text("Network stream") },
+        text = {
+            Column {
+                Text("Paste a direct video or audio URL (HTTPS). MP4, MP3, HLS (.m3u8) and DASH (.mpd) supported.")
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = streamUrl,
+                    onValueChange = { streamUrl = it; streamError = "" },
+                    label = { Text("Stream URL") },
+                    singleLine = true
+                )
+                if (streamError.isNotEmpty()) Text(streamError, color = MaterialTheme.colorScheme.error)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val url = streamUrl.trim()
+                val parsed = Uri.parse(url)
+                if (parsed.scheme?.lowercase() != "https" || parsed.host.isNullOrBlank()) {
+                    streamError = "Enter a valid HTTPS stream URL"
+                } else {
+                    selected = LocalMedia(parsed.lastPathSegment?.takeIf { it.isNotBlank() } ?: "Network stream", parsed, true, 0L, "Network", 0L, 0L)
+                    streamDialog = false
+                }
+            }) { Text("Play") }
+        },
+        dismissButton = { TextButton(onClick = { streamDialog = false }) { Text("Cancel") } }
+    )
     if (trackDialog || subtitleDialog) {
         val isAudio = trackDialog
         val trackType = if (isAudio) C.TRACK_TYPE_AUDIO else C.TRACK_TYPE_TEXT
@@ -1020,6 +1053,7 @@ Full license texts and dependency notices should be made available on the develo
                         Text("View / Sort")
                     }
                     TextButton(onClick = { filePicker.launch(arrayOf("video/*", "audio/*", "application/octet-stream")) }) { Text("Open file") }
+                    TextButton(onClick = { streamDialog = true; streamError = "" }) { Text("Network stream") }
                 }
                 if (libraryOptions) AlertDialog(
                     onDismissRequest = { libraryOptions = false },
