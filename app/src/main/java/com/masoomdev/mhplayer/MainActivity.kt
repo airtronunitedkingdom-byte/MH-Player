@@ -190,6 +190,8 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     var pinchZoom by remember { mutableFloatStateOf(1f) }
     var repeatOne by remember { mutableStateOf(false) }
     var seekSeconds by remember { mutableLongStateOf(prefs.getLong("seek_seconds", 10L)) }
+    var holdSpeedActive by remember { mutableStateOf(false) }
+    var seekFeedback by remember { mutableStateOf("") }
     LaunchedEffect(selected?.uri, controlsVisible, controlsInteraction, locked, trackDialog, subtitleDialog, speedMenu, quickSettingsOpen, autoHideSeconds) {
         if (selected != null && controlsVisible && !locked && !trackDialog && !subtitleDialog && !speedMenu && !quickSettingsOpen) {
             delay(autoHideSeconds * 1000L)
@@ -284,6 +286,7 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     LaunchedEffect(selected?.uri) {
         val item = selected ?: return@LaunchedEffect
         pinchZoom = 1f
+        holdSpeedActive = false
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         lastPlayedUri = item.uri.toString()
         prefs.edit().putString("last_played_uri", lastPlayedUri).apply()
@@ -319,7 +322,7 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     }
     fun closePlayer() {
         selected?.let { prefs.edit().putLong("position_${it.uri}", player.currentPosition.coerceAtLeast(0L)).apply() }
-        player.pause(); selected = null; locked = false; pinchZoom = 1f; activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED; activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+        player.pause(); if (holdSpeedActive) player.setPlaybackSpeed(playbackSpeed); holdSpeedActive = false; selected = null; locked = false; pinchZoom = 1f; activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED; activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
     BackHandler(enabled = !pipActive) { if (quickSettingsOpen) quickSettingsOpen = false else if (exitPrompt) exitPrompt = false else if (selected != null) { if (locked) locked = false else closePlayer() } else if (infoPage != null) infoPage = null else if (settingsOpen) settingsOpen = false else if (currentFolder != null) currentFolder = null else exitPrompt = true }
     if (trackDialog || subtitleDialog) {
         val isAudio = trackDialog
@@ -676,6 +679,8 @@ Full license texts and dependency notices should be made available on the develo
                     Text("SEEK", color = purple, modifier = Modifier.padding(top = 20.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Skip duration", color = foreground, modifier = Modifier.weight(1f))
+                        FilterChip(selected = seekSeconds == 5L, onClick = { seekSeconds = 5L; prefs.edit().putLong("seek_seconds", 5L).apply() }, label = { Text("5s") })
+                        Spacer(Modifier.width(8.dp))
                         FilterChip(selected = seekSeconds == 10L, onClick = { seekSeconds = 10L; prefs.edit().putLong("seek_seconds", 10L).apply() }, label = { Text("10s") })
                         Spacer(Modifier.width(8.dp))
                         FilterChip(selected = seekSeconds == 30L, onClick = { seekSeconds = 30L; prefs.edit().putLong("seek_seconds", 30L).apply() }, label = { Text("30s") })
@@ -784,12 +789,40 @@ Full license texts and dependency notices should be made available on the develo
                             }
                         }
                         .pointerInput(locked) {
-                            detectTapGestures(onTap = {
-                                if (!locked) {
-                                    controlsVisible = !controlsVisible
-                                    controlsInteraction++
+                            detectTapGestures(
+                                onTap = {
+                                    if (!locked) {
+                                        controlsVisible = !controlsVisible
+                                        controlsInteraction++
+                                    }
+                                },
+                                onDoubleTap = { offset ->
+                                    if (!locked && !audioMode) {
+                                        val skipMs = seekSeconds * 1000L
+                                        val forward = offset.x >= size.width / 2f
+                                        val target = if (forward) player.currentPosition + skipMs else player.currentPosition - skipMs
+                                        val maxPosition = if (player.duration > 0) player.duration else Long.MAX_VALUE
+                                        player.seekTo(target.coerceIn(0L, maxPosition))
+                                        seekFeedback = (if (forward) "+" else "-") + "${seekSeconds}s"
+                                        controlsInteraction++
+                                    }
+                                },
+                                onLongPress = { offset ->
+                                    if (!locked && !audioMode && offset.x >= size.width / 2f && !holdSpeedActive) {
+                                        holdSpeedActive = true
+                                        player.setPlaybackSpeed(2f)
+                                        controlsInteraction++
+                                    }
+                                },
+                                onPress = {
+                                    tryAwaitRelease()
+                                    if (holdSpeedActive) {
+                                        holdSpeedActive = false
+                                        player.setPlaybackSpeed(playbackSpeed)
+                                        controlsInteraction++
+                                    }
                                 }
-                            })
+                            )
                         }
                         .pointerInput(locked) {
                             var startX = 0f
@@ -833,6 +866,9 @@ Full license texts and dependency notices should be made available on the develo
                             )
                         }
                     )
+                    if (holdSpeedActive && !audioMode) {
+                        Text("2× Speed • Release to resume", modifier = Modifier.align(Alignment.Center), color = Color.White)
+                    }
                     if (gestureLevel >= 0f && !locked && !audioMode) {
                         Surface(Modifier.align(Alignment.Center), color = Color(0xDD151827), shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp)) {
                             Column(Modifier.padding(horizontal = 24.dp, vertical = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
