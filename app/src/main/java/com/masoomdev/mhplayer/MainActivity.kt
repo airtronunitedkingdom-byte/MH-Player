@@ -255,6 +255,10 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) { trackRevision++ }
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                val uri = mediaItem?.localConfiguration?.uri ?: return
+                if (selected?.uri != uri) selected = media.firstOrNull { it.uri == uri } ?: selected
+            }
             override fun onPlaybackStateChanged(playbackState: Int) {
                 trackRevision++
                 if (playbackState == Player.STATE_ENDED && playlistOnly && selected != null) {
@@ -351,12 +355,19 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         lastPlayedUri = item.uri.toString()
         prefs.edit().putString("last_played_uri", lastPlayedUri).apply()
-        player.setMediaItem(
-            MediaItem.Builder().setUri(item.uri)
-                .setMediaMetadata(androidx.media3.common.MediaMetadata.Builder().setTitle(item.title).build())
-                .build()
-        )
-        player.prepare()
+        if (player.currentMediaItem?.localConfiguration?.uri != item.uri) {
+            val queue = if (playlistOnly) media.filter { it.uri.toString() in playlistUris && it.video == showVideo }
+                .let { if (it.any { entry -> entry.uri == item.uri }) it else listOf(item) }
+                else listOf(item)
+            val items = queue.map { entry ->
+                MediaItem.Builder().setUri(entry.uri)
+                    .setMediaMetadata(androidx.media3.common.MediaMetadata.Builder().setTitle(entry.title).build())
+                    .build()
+            }
+            val index = queue.indexOfFirst { it.uri == item.uri }.coerceAtLeast(0)
+            player.setMediaItems(items, index, 0L)
+            player.prepare()
+        }
         val saved = prefs.getLong("position_${item.uri}", 0L)
         if (resumePlayback && saved > 0) player.seekTo(saved)
         player.playWhenReady = autoPlay
