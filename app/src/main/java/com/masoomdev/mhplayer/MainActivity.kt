@@ -156,8 +156,8 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     var resumePlayback by remember { mutableStateOf(prefs.getBoolean("resume", true)) }
     var autoPlay by remember { mutableStateOf(prefs.getBoolean("autoplay", true)) }
     var backgroundPlay by remember { mutableStateOf(prefs.getBoolean("background_play", false)) }
-    LaunchedEffect(backgroundPlay) {
-        if (backgroundPlay) {
+    LaunchedEffect(backgroundPlay, selected?.uri) {
+        if (backgroundPlay && selected != null) {
             try {
                 androidx.core.content.ContextCompat.startForegroundService(
                     context, Intent(context, PlaybackService::class.java)
