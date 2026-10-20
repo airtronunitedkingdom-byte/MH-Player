@@ -134,17 +134,8 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     val context = LocalContext.current
     val pipActive = activity.pipActive
     val prefs = remember { activity.getSharedPreferences("mh_player", 0) }
-    val player = remember {
-        val renderers = DefaultRenderersFactory(context)
-            .setEnableDecoderFallback(true)
-        val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(15_000, 50_000, 1_000, 2_000)
-            .build()
-        ExoPlayer.Builder(context, renderers)
-            .setLoadControl(loadControl)
-            .build()
-    }
-    DisposableEffect(player) { onDispose { player.release(); activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) } }
+    val player = remember { PlaybackHolder.player(context) }
+    DisposableEffect(player) { onDispose { activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) } }
     var splash by remember { mutableStateOf(true) }
     var exitPrompt by remember { mutableStateOf(false) }
     var streamDialog by remember { mutableStateOf(false) }
@@ -165,6 +156,17 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     var resumePlayback by remember { mutableStateOf(prefs.getBoolean("resume", true)) }
     var autoPlay by remember { mutableStateOf(prefs.getBoolean("autoplay", true)) }
     var backgroundPlay by remember { mutableStateOf(prefs.getBoolean("background_play", false)) }
+    LaunchedEffect(backgroundPlay) {
+        if (backgroundPlay) {
+            try {
+                androidx.core.content.ContextCompat.startForegroundService(
+                    context, Intent(context, PlaybackService::class.java)
+                )
+            } catch (_: Exception) { /* Android may restrict background service starts */ }
+        } else {
+            context.stopService(Intent(context, PlaybackService::class.java))
+        }
+    }
     var brightnessGesture by remember { mutableStateOf(prefs.getBoolean("brightness_gesture", true)) }
     var volumeGesture by remember { mutableStateOf(prefs.getBoolean("volume_gesture", true)) }
     var media by remember { mutableStateOf<List<LocalMedia>>(emptyList()) }
@@ -343,7 +345,11 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         lastPlayedUri = item.uri.toString()
         prefs.edit().putString("last_played_uri", lastPlayedUri).apply()
-        player.setMediaItem(MediaItem.fromUri(item.uri))
+        player.setMediaItem(
+            MediaItem.Builder().setUri(item.uri)
+                .setMediaMetadata(androidx.media3.common.MediaMetadata.Builder().setTitle(item.title).build())
+                .build()
+        )
         player.prepare()
         val saved = prefs.getLong("position_${item.uri}", 0L)
         if (resumePlayback && saved > 0) player.seekTo(saved)
@@ -375,7 +381,7 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     }
     fun closePlayer() {
         selected?.let { prefs.edit().putLong("position_${it.uri}", player.currentPosition.coerceAtLeast(0L)).apply() }
-        player.pause(); if (holdSpeedActive) player.setPlaybackSpeed(playbackSpeed); holdSpeedActive = false; selected = null; locked = false; pinchZoom = 1f; activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED; activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+        player.pause(); player.clearMediaItems(); if (holdSpeedActive) player.setPlaybackSpeed(playbackSpeed); holdSpeedActive = false; selected = null; locked = false; pinchZoom = 1f; activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED; activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
     BackHandler(enabled = !pipActive) { if (quickSettingsOpen) quickSettingsOpen = false else if (exitPrompt) exitPrompt = false else if (selected != null) { if (locked) locked = false else closePlayer() } else if (infoPage != null) infoPage = null else if (settingsOpen) settingsOpen = false else if (currentFolder != null) currentFolder = null else exitPrompt = true }
     if (streamDialog) AlertDialog(
         onDismissRequest = { streamDialog = false },
