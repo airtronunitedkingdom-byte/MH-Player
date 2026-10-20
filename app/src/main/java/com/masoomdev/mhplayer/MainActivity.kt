@@ -199,6 +199,7 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) { trackRevision++ }
+            override fun onPlaybackStateChanged(playbackState: Int) { trackRevision++ }
             override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
                 if (selected?.video == true && videoSize.width > 0 && videoSize.height > 0) {
                     val displayWidth = videoSize.width * videoSize.pixelWidthHeightRatio
@@ -325,6 +326,7 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
         val trackType = if (isAudio) C.TRACK_TYPE_AUDIO else C.TRACK_TYPE_TEXT
         val revision = trackRevision
         val groups = player.currentTracks.groups.filter { it.type == trackType }
+        val tracksLoading = player.playbackState == Player.STATE_BUFFERING || player.playbackState == Player.STATE_IDLE
         AlertDialog(
             onDismissRequest = { trackDialog = false; subtitleDialog = false },
             title = { Text(if (isAudio) "Audio track selection" else "Subtitle selection") },
@@ -337,19 +339,43 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
                     }) { Text(if (isAudio) "Automatic audio" else "Subtitles off") }
                     groups.forEachIndexed { groupNumber, group ->
                         for (index in 0 until group.length) {
-                            if (group.isTrackSupported(index)) {
-                                val format = group.getTrackFormat(index)
-                                val title = format.label ?: (if (isAudio) "Audio" else "Subtitle") + " ${groupNumber + 1}.${index + 1}"
-                                TextButton(onClick = {
+                            val format = group.getTrackFormat(index)
+                            val supported = group.isTrackSupported(index)
+                            val languageCode = format.language?.takeUnless { it.isBlank() || it == "und" }
+                            val languageName = languageCode?.let { code ->
+                                java.util.Locale.forLanguageTag(code).getDisplayLanguage(java.util.Locale.ENGLISH)
+                                    .takeUnless { it.isBlank() || it.equals(code, ignoreCase = true) }
+                            }
+                            val trackName = format.label?.takeUnless { it.isBlank() }
+                                ?: languageName?.replaceFirstChar { it.uppercase() }
+                                ?: (if (isAudio) "Audio" else "Subtitle") + " ${groupNumber + 1}.${index + 1}"
+                            val codec = format.sampleMimeType?.substringAfter('/') ?: "unknown codec"
+                            val detail = listOfNotNull(
+                                languageCode?.uppercase(),
+                                if (isAudio) codec.uppercase() else null,
+                                if (!supported) "Unsupported codec" else null
+                            ).joinToString(" • ")
+                            TextButton(
+                                enabled = supported,
+                                onClick = {
                                     player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
-                                        .clearOverridesOfType(trackType).setTrackTypeDisabled(trackType, false)
-                                        .addOverride(TrackSelectionOverride(group.mediaTrackGroup, index)).build()
+                                        .clearOverridesOfType(trackType)
+                                        .setTrackTypeDisabled(trackType, false)
+                                        .addOverride(TrackSelectionOverride(group.mediaTrackGroup, listOf(index)))
+                                        .build()
                                     trackDialog = false; subtitleDialog = false
-                                }) { Text((if (group.isTrackSelected(index)) "✓ " else "") + title + " • " + (format.language ?: "Unknown")) }
+                                }
+                            ) {
+                                Column {
+                                    Text((if (group.isTrackSelected(index)) "✓ " else "") + trackName)
+                                    if (detail.isNotBlank()) Text(detail, style = MaterialTheme.typography.labelSmall)
+                                }
                             }
                         }
                     }
-                    if (groups.isEmpty()) Text("No embedded tracks available")
+                    if (groups.isEmpty()) Text(if (tracksLoading) "Loading embedded tracks..." else "No embedded tracks found in this file")
+                    if (groups.isNotEmpty() && groups.none { group -> (0 until group.length).any { group.isTrackSupported(it) } })
+                        Text("This file contains tracks, but their codecs are not supported by this device.")
                     if (revision < 0) Text("")
                 }
             },
