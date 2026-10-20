@@ -1,6 +1,12 @@
 package com.masoomdev.mhplayer
 
 import android.content.Context
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Intent
+import androidx.core.app.NotificationCompat
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -23,15 +29,49 @@ object PlaybackHolder {
 
 class PlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
+    private val channelId = "mh_playback"
+    private val notificationId = 1001
+    private val listener = object : Player.Listener {
+        override fun onIsPlayingChanged(isPlaying: Boolean) { updateNotification() }
+        override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) { updateNotification() }
+        override fun onPlaybackStateChanged(playbackState: Int) { updateNotification() }
+    }
+    private fun updateNotification() {
+        val player = PlaybackHolder.player(this)
+        if (player.mediaItemCount == 0) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            return
+        }
+        val title = player.currentMediaItem?.mediaMetadata?.title?.toString() ?: "MH Player"
+        val openIntent = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val notification = NotificationCompat.Builder(this, channelId)
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setContentTitle(title)
+            .setContentText(if (player.isPlaying) "Playing in background" else "Paused")
+            .setContentIntent(openIntent)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOngoing(player.isPlaying)
+            .setOnlyAlertOnce(true)
+            .setStyle(androidx.media3.session.MediaStyleNotificationHelper.MediaStyle(session!!))
+            .build()
+        startForeground(notificationId, notification)
+    }
 
     override fun onCreate() {
         super.onCreate()
+        getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(channelId, "Media playback", NotificationManager.IMPORTANCE_LOW))
         session = MediaSession.Builder(this, PlaybackHolder.player(this)).build()
+        PlaybackHolder.player(this).addListener(listener)
+        updateNotification()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
 
     override fun onDestroy() {
+        PlaybackHolder.player(this).removeListener(listener)
+        stopForeground(STOP_FOREGROUND_REMOVE)
         session?.release()
         session = null
         super.onDestroy()
