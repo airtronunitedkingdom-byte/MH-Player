@@ -411,13 +411,10 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
                     .build()
             }
             val index = queue.indexOfFirst { it.uri == item.uri }.coerceAtLeast(0)
-            player.setMediaItems(items, index, 0L)
-            player.prepare()
-        }
-        val saved = prefs.getLong("position_${item.uri}", 0L)
-        if (!alreadyPlaying) {
-            if (resumePlayback && saved > 0) player.seekTo(saved)
+            val saved = if (resumePlayback) prefs.getLong("position_${item.uri}", 0L).coerceAtLeast(0L) else 0L
+            player.setMediaItems(items, index, saved)
             player.playWhenReady = autoPlay
+            player.prepare()
         }
         locked = false
         controlsVisible = true
@@ -441,7 +438,7 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
                 prefs.edit().putLong("position_${current.uri}", nextProgress).apply()
                 lastSavedAt = now
             }
-            delay(750)
+            delay(if (nextPlaying) 1000L else 1500L)
         }
     }
     fun closePlayer() {
@@ -1286,14 +1283,16 @@ Full license texts and dependency notices should be made available on the develo
                         }
                     }
                 } else {
-                    val entries = if (currentFolder == null) filtered else filtered.filter { it.folder == currentFolder }
-                    val ordered = when (sortMode) {
+                    val sorted = remember(filtered, currentFolder, sortMode, sortDescending) {
+                        val entries = if (currentFolder == null) filtered else filtered.filter { it.folder == currentFolder }
+                        val ordered = when (sortMode) {
                         "Date" -> entries.sortedWith(compareBy({ it.dateAdded }, { it.title.lowercase() }))
                         "Duration" -> entries.sortedWith(compareBy({ it.duration }, { it.title.lowercase() }))
                         "Size" -> entries.sortedWith(compareBy({ it.size }, { it.title.lowercase() }))
                         else -> entries.sortedBy { it.title.lowercase() }
                     }
-                    val sorted = if (sortDescending) ordered.reversed() else ordered
+                        if (sortDescending) ordered.reversed() else ordered
+                    }
                     if (gridView) {
                         LazyVerticalGrid(columns = GridCells.Adaptive(minSize = 140.dp)) {
                             gridItems(sorted, key = { it.uri.toString() }) { item ->
