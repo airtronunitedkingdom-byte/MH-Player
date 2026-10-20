@@ -156,6 +156,11 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     var resumePlayback by remember { mutableStateOf(prefs.getBoolean("resume", true)) }
     var autoPlay by remember { mutableStateOf(prefs.getBoolean("autoplay", true)) }
     var backgroundPlay by remember { mutableStateOf(prefs.getBoolean("background_play", false)) }
+
+    var brightnessGesture by remember { mutableStateOf(prefs.getBoolean("brightness_gesture", true)) }
+    var volumeGesture by remember { mutableStateOf(prefs.getBoolean("volume_gesture", true)) }
+    var media by remember { mutableStateOf<List<LocalMedia>>(emptyList()) }
+    var selected by remember { mutableStateOf<LocalMedia?>(null) }
     LaunchedEffect(backgroundPlay, selected?.uri) {
         if (backgroundPlay && selected != null) {
             try {
@@ -167,10 +172,6 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
             context.stopService(Intent(context, PlaybackService::class.java))
         }
     }
-    var brightnessGesture by remember { mutableStateOf(prefs.getBoolean("brightness_gesture", true)) }
-    var volumeGesture by remember { mutableStateOf(prefs.getBoolean("volume_gesture", true)) }
-    var media by remember { mutableStateOf<List<LocalMedia>>(emptyList()) }
-    var selected by remember { mutableStateOf<LocalMedia?>(null) }
     var showVideo by remember { mutableStateOf(true) }
     var playlistOnly by remember { mutableStateOf(false) }
     var playlistUris by remember { mutableStateOf(prefs.getStringSet("my_playlist", emptySet())?.toSet() ?: emptySet<String>()) }
