@@ -14,6 +14,9 @@ import android.content.res.Configuration
 import android.util.Rational
 import android.provider.MediaStore
 import android.view.WindowManager
+import android.content.pm.ActivityInfo
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -184,6 +187,7 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     var subtitleDialog by remember { mutableStateOf(false) }
     var trackRevision by remember { mutableIntStateOf(0) }
     var resizeChoice by remember { mutableIntStateOf(0) }
+    var pinchZoom by remember { mutableFloatStateOf(1f) }
     var repeatOne by remember { mutableStateOf(false) }
     var seekSeconds by remember { mutableLongStateOf(prefs.getLong("seek_seconds", 10L)) }
     LaunchedEffect(selected?.uri, controlsVisible, controlsInteraction, locked, trackDialog, subtitleDialog, speedMenu, quickSettingsOpen, autoHideSeconds) {
@@ -195,6 +199,12 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) { trackRevision++ }
+            override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                if (selected?.video == true && videoSize.width > 0 && videoSize.height > 0) {
+                    val displayWidth = videoSize.width * videoSize.pixelWidthHeightRatio
+                    activity.requestedOrientation = if (displayWidth > videoSize.height) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                }
+            }
         }
         player.addListener(listener)
         onDispose { player.removeListener(listener) }
@@ -272,6 +282,8 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     }
     LaunchedEffect(selected?.uri) {
         val item = selected ?: return@LaunchedEffect
+        pinchZoom = 1f
+        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         lastPlayedUri = item.uri.toString()
         prefs.edit().putString("last_played_uri", lastPlayedUri).apply()
         player.setMediaItem(MediaItem.fromUri(item.uri))
@@ -306,7 +318,7 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     }
     fun closePlayer() {
         selected?.let { prefs.edit().putLong("position_${it.uri}", player.currentPosition.coerceAtLeast(0L)).apply() }
-        player.pause(); selected = null; locked = false; activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+        player.pause(); selected = null; locked = false; pinchZoom = 1f; activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED; activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
     BackHandler(enabled = !pipActive) { if (quickSettingsOpen) quickSettingsOpen = false else if (exitPrompt) exitPrompt = false else if (selected != null) { if (locked) locked = false else closePlayer() } else if (infoPage != null) infoPage = null else if (settingsOpen) settingsOpen = false else if (currentFolder != null) currentFolder = null else exitPrompt = true }
     if (trackDialog || subtitleDialog) {
         val isAudio = trackDialog
@@ -702,7 +714,7 @@ Full license texts and dependency notices should be made available on the develo
             Box(Modifier.fillMaxSize().background(if (audioMode) dark else Color.Black)) {
                 Box(Modifier.fillMaxSize()) {
                     if (!audioMode) {
-                        AndroidView(factory = { ctx -> PlayerView(ctx).apply { this.player = player; useController = false } }, modifier = Modifier.fillMaxSize(), update = { it.resizeMode = resizeChoice })
+                        AndroidView(factory = { ctx -> android.view.LayoutInflater.from(ctx).inflate(com.masoomdev.mhplayer.R.layout.mh_video_view, null) as PlayerView }.let { view -> view.player = player; view.useController = false; view }, modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = pinchZoom; scaleY = pinchZoom }, update = { it.resizeMode = resizeChoice })
                     } else {
                         Column(
                             Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 85.dp),
@@ -737,6 +749,14 @@ Full license texts and dependency notices should be made available on the develo
                         }
                     }
                     if (!pipActive) Box(Modifier.fillMaxSize()
+                        .pointerInput(audioMode, locked) {
+                            detectTransformGestures { _, _, zoom, _ ->
+                                if (!audioMode && !locked && zoom != 1f) {
+                                    pinchZoom = (pinchZoom * zoom).coerceIn(1f, 4f)
+                                    controlsInteraction++
+                                }
+                            }
+                        }
                         .pointerInput(locked) {
                             detectTapGestures(onTap = {
                                 if (!locked) {
