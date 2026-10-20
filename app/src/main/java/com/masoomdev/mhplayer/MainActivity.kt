@@ -4,6 +4,11 @@ import android.Manifest
 import android.content.ContentUris
 import android.content.pm.PackageManager
 import android.media.AudioManager
+import android.media.MediaMetadataRetriever
+import android.util.Size
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import android.media.audiofx.Equalizer
 import android.net.Uri
 import android.content.Intent
@@ -64,6 +69,27 @@ import kotlinx.coroutines.launch
 private val dark = Color(0xFF0D1020)
 private val purple = Color(0xFF9B72FF)
 private data class LocalMedia(val title: String, val uri: Uri, val video: Boolean, val duration: Long, val folder: String, val size: Long, val dateAdded: Long)
+
+@Composable
+private fun MediaThumbnail(item: LocalMedia, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val bitmap by produceState<android.graphics.Bitmap?>(initialValue = null, item.uri) {
+        value = if (!item.video || item.uri.scheme != "content") null else withContext(Dispatchers.IO) {
+            try {
+                if (Build.VERSION.SDK_INT >= 29) context.contentResolver.loadThumbnail(item.uri, Size(240, 160), null)
+                else {
+                    val retriever = MediaMetadataRetriever()
+                    try {
+                        retriever.setDataSource(context, item.uri)
+                        retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                    } finally { retriever.release() }
+                }
+            } catch (_: Exception) { null }
+        }
+    }
+    if (bitmap != null) Image(bitmap!!.asImageBitmap(), contentDescription = "Video preview", modifier = modifier, contentScale = ContentScale.Crop)
+    else Icon(if (item.video) Icons.Default.Movie else Icons.Default.MusicNote, null, modifier = modifier, tint = Color(0xFF9B72FF))
+}
 
 class MainActivity : ComponentActivity() {
     var pipActive by mutableStateOf(false)
@@ -144,6 +170,12 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     var media by remember { mutableStateOf<List<LocalMedia>>(emptyList()) }
     var selected by remember { mutableStateOf<LocalMedia?>(null) }
     var showVideo by remember { mutableStateOf(true) }
+    var playlistOnly by remember { mutableStateOf(false) }
+    var playlistUris by remember { mutableStateOf(prefs.getStringSet("my_playlist", emptySet())?.toSet() ?: emptySet<String>()) }
+    fun togglePlaylist(item: LocalMedia) {
+        playlistUris = if (item.uri.toString() in playlistUris) playlistUris - item.uri.toString() else playlistUris + item.uri.toString()
+        prefs.edit().putStringSet("my_playlist", playlistUris.toSet()).apply()
+    }
     var currentFolder by remember { mutableStateOf<String?>(null) }
     var searchText by remember { mutableStateOf("") }
     var sortMode by remember { mutableStateOf(prefs.getString("sort_mode", "Name") ?: "Name") }
@@ -215,7 +247,14 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) { trackRevision++ }
-            override fun onPlaybackStateChanged(playbackState: Int) { trackRevision++ }
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                trackRevision++
+                if (playbackState == Player.STATE_ENDED && playlistOnly && selected != null) {
+                    val queue = media.filter { it.uri.toString() in playlistUris && it.video == showVideo }
+                    val index = queue.indexOfFirst { it.uri == selected?.uri }
+                    if (index >= 0 && index + 1 < queue.size) selected = queue[index + 1]
+                }
+            }
             override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
                 if (selected?.video == true && videoSize.width > 0 && videoSize.height > 0) {
                     val displayWidth = videoSize.width * videoSize.pixelWidthHeightRatio
@@ -1047,6 +1086,8 @@ Full license texts and dependency notices should be made available on the develo
                     FilterChip(selected = showVideo, onClick = { showVideo = true; currentFolder = null }, label = { Text("Videos") })
                     Spacer(Modifier.width(12.dp))
                     FilterChip(selected = !showVideo, onClick = { showVideo = false; currentFolder = null }, label = { Text("Audio") })
+                    Spacer(Modifier.width(8.dp))
+                    FilterChip(selected = playlistOnly, onClick = { playlistOnly = !playlistOnly; currentFolder = null }, label = { Text("Playlist") })
                 }
                 Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1125,6 +1166,7 @@ Full license texts and dependency notices should be made available on the develo
                 if (libraryLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
                 val filtered = media.filter {
                     it.video == showVideo &&
+                    (!playlistOnly || it.uri.toString() in playlistUris) &&
                     (includeAndroidMedia || !it.folder.trimStart('/').startsWith("Android/", ignoreCase = true)) &&
                     (includedFolders.isBlank() || it.folder in includedFolders.split("|")) &&
                     (showHidden || (!it.title.startsWith(".") && it.folder.split("/").none { part -> part.startsWith(".") })) &&
@@ -1185,10 +1227,10 @@ Full license texts and dependency notices should be made available on the develo
                                     Modifier.fillMaxWidth().clickable { selected = item }.padding(12.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
-                                    Icon(if (item.video) Icons.Default.Movie else Icons.Default.MusicNote,
-                                        null, Modifier.size(46.dp), tint = purple)
+                                    MediaThumbnail(item, Modifier.size(width = 112.dp, height = 70.dp))
                                     Spacer(Modifier.height(8.dp))
                                     Text(item.title, color = foreground, maxLines = 2)
+                                    TextButton(onClick = { togglePlaylist(item) }) { Text(if (item.uri.toString() in playlistUris) "Remove" else "+ Playlist") }
                                     if (markLastPlayed && item.uri.toString() == lastPlayedUri) Text("Last played", color = purple, fontSize = 12.sp)
                                     if (newTagDays > 0 && item.dateAdded > 0 && System.currentTimeMillis() / 1000 - item.dateAdded <= newTagDays * 86400L) Text("NEW", color = purple, fontSize = 11.sp)
                                     Text("${item.duration / 60000} min", color = secondaryText, fontSize = 12.sp)
@@ -1200,11 +1242,14 @@ Full license texts and dependency notices should be made available on the develo
                             items(sorted, key = { it.uri.toString() }) { item ->
                                 Row(Modifier.fillMaxWidth().clickable { selected = item }.padding(vertical = 15.dp),
                                     verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(if (item.video) Icons.Default.Movie else Icons.Default.MusicNote, null, tint = purple)
-                                    Spacer(Modifier.width(14.dp))
-                                    Column {
+                                    MediaThumbnail(item, Modifier.size(width = 76.dp, height = 50.dp))
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(Modifier.weight(1f)) {
                                         Text(item.title, color = foreground, maxLines = 2)
                                         Text("${item.duration / 60000} min", color = secondaryText, fontSize = 12.sp)
+                                    }
+                                    IconButton(onClick = { togglePlaylist(item) }) {
+                                        Icon(if (item.uri.toString() in playlistUris) Icons.Default.PlaylistRemove else Icons.Default.PlaylistAdd, "Toggle playlist", tint = purple)
                                     }
                                 }
                                 HorizontalDivider(color = Color(0xFF30364C))
