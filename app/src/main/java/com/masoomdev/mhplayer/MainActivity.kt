@@ -1054,7 +1054,7 @@ Full license texts and dependency notices should be made available on the develo
                         IconButton(onClick = { if (locked) locked = false else closePlayer() }) {
                             Icon(Icons.Default.ArrowBack, "Back", tint = foreground)
                         }
-                        Text(selected?.title ?: "", Modifier.weight(1f), color = foreground, maxLines = 1)
+                        Column(Modifier.weight(1f)) { Text(selected?.title ?: "", color = foreground, maxLines = 1, fontSize = 16.sp); Text(if (audioMode) "AUDIO PLAYER" else "VIDEO PLAYER", color = Color(0xFFB5A1FF), fontSize = 10.sp) }
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && selected?.video == true) {
                             IconButton(onClick = {
                                 try {
@@ -1117,6 +1117,7 @@ Full license texts and dependency notices should be made available on the develo
                         .background(Color(0xC9000000)).padding(horizontal = 14.dp, vertical = 8.dp)
                 ) {
                     if (activeLayout == "Cinema") Text("CINEMA", color = purple, fontSize = 11.sp)
+                    if (!audioMode) Text("SWIPE TO SEEK  •  DOUBLE TAP TO SKIP", color = Color(0xFFB9B9C9), fontSize = 10.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
                     Slider(
                         value = if (duration > 0) (progress.toFloat() / duration).coerceIn(0f, 1f) else 0f,
                         onValueChange = { if (duration > 0) player.seekTo((it * duration).toLong()); controlsInteraction++ }
@@ -1135,8 +1136,8 @@ Full license texts and dependency notices should be made available on the develo
                             controlsInteraction++
                         }) { Icon(Icons.Default.Replay10, "Seek backward", tint = foreground) }
                         IconButton(onClick = { if (player.isPlaying) player.pause() else player.play(); controlsInteraction++ }) {
-                            Icon(if (playing) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
-                                "Play or pause", Modifier.size(54.dp), tint = purple)
+                            Surface(shape = androidx.compose.foundation.shape.CircleShape, color = Color(0xFF262039)) { Icon(if (playing) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
+                                "Play or pause", Modifier.padding(5.dp).size(54.dp), tint = Color(0xFFB99AFF)) }
                         }
                         IconButton(onClick = { player.seekTo(player.currentPosition + seekSeconds * 1000); controlsInteraction++ }) {
                             Icon(Icons.Default.Forward10, "Seek forward", tint = foreground)
