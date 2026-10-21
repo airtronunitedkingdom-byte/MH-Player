@@ -1066,6 +1066,8 @@ Full license texts and dependency notices should be made available on the develo
                                 Icon(Icons.Default.PictureInPictureAlt, "Picture-in-Picture", tint = purple)
                             }
                         }
+                        if (!locked) IconButton(onClick = { trackDialog = true; controlsInteraction++ }) { Icon(Icons.Default.Audiotrack, "Audio tracks", tint = purple) }
+                        if (!locked) IconButton(onClick = { subtitleDialog = true; controlsInteraction++ }) { Icon(Icons.Default.Subtitles, "Subtitles", tint = purple) }
                         if (!locked) IconButton(onClick = {
                             quickSettingsOpen = true
                             controlsVisible = true
@@ -1092,14 +1094,6 @@ Full license texts and dependency notices should be made available on the develo
                                 }
                             }
                         }
-                        TextButton(onClick = { trackDialog = true; controlsInteraction++ }) {
-                            Icon(Icons.Default.Audiotrack, "Audio tracks", tint = purple)
-                            Text("Audio")
-                        }
-                        TextButton(onClick = { subtitleDialog = true; controlsInteraction++ }) {
-                            Icon(Icons.Default.Subtitles, "Subtitles", tint = purple)
-                            Text("CC")
-                        }
                         TextButton(onClick = { subtitlePicker.launch(arrayOf("*/*")); controlsInteraction++ }) { Text("+ Subtitle") }
                         TextButton(onClick = {
                             resizeChoice = when (resizeChoice) { 0 -> 2; 2 -> 3; else -> 0 }
@@ -1124,7 +1118,7 @@ Full license texts and dependency notices should be made available on the develo
                     )
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("${progress / 60000}:${"%02d".format(progress / 1000 % 60)}", color = foreground)
-                        Text("${duration / 60000}:${"%02d".format(duration / 1000 % 60)}", color = foreground)
+                        Text(if (duration > 0) "-${(duration - progress).coerceAtLeast(0) / 60000}:${"%02d".format((duration - progress).coerceAtLeast(0) / 1000 % 60)}" else "0:00", color = Color(0xFFB9B9C9))
                     }
                     Row(
                         Modifier.fillMaxWidth(),
