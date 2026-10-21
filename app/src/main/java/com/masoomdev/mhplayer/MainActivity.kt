@@ -602,10 +602,10 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
         if (quickSettingsOpen && selected != null && !pipActive) {
             AlertDialog(
                 onDismissRequest = { quickSettingsOpen = false },
-                title = { Text("Playback settings") },
+                title = { Column { Text("Player settings", fontSize = 22.sp); Text("Customize without leaving playback", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) } },
                 text = {
-                    Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState())) {
-                        Text("PLAYER DESIGN", color = MaterialTheme.colorScheme.primary)
+                    Column(Modifier.fillMaxWidth().heightIn(max = 460.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("PLAYER DESIGN", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
                         Text(if (selected?.video == true) "Video layout" else "Audio layout")
                         val options = if (selected?.video == true) listOf("Classic", "Modern", "Cinema")
                             else listOf("Classic", "Modern", "Studio")
@@ -640,15 +640,16 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
                             Text("Equalizer is unavailable on this device.", color = MaterialTheme.colorScheme.error)
                         }
                         HorizontalDivider()
-                        Text("PLAYBACK", color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 12.dp))
+                        Text("PLAYBACK", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
                         SettingsToggle("Resume playback", "Remember playback position", resumePlayback) {
                             resumePlayback = it; prefs.edit().putBoolean("resume", it).apply()
                         }
                         SettingsToggle("Background playback", "Continue audio outside the app", backgroundPlay) {
                             backgroundPlay = it; prefs.edit().putBoolean("background_play", it).apply()
                         }
-                        Text("THEME", color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 12.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        HorizontalDivider()
+                        Text("THEME", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
+                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             listOf("System", "White", "Dark", "Purple").forEach { option ->
                                 FilterChip(selected = themeChoice == option, onClick = {
                                     themeChoice = option; prefs.edit().putString("ui_theme", option).apply()
@@ -1048,7 +1049,7 @@ Full license texts and dependency notices should be made available on the develo
                 }
                 if (!pipActive && (controlsVisible || locked || audioMode)) Column(
                     Modifier.align(Alignment.TopCenter).fillMaxWidth()
-                        .background(Color(0xC9000000)).padding(horizontal = 8.dp, vertical = 4.dp)
+                        .background(Color(0xC9000000)).padding(horizontal = 12.dp, vertical = 4.dp)
                 ) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = { if (locked) locked = false else closePlayer() }) {
@@ -1108,10 +1109,10 @@ Full license texts and dependency notices should be made available on the develo
                 }
                 if (!pipActive && !locked && (controlsVisible || audioMode)) Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                        .background(Color(0xC9000000)).padding(horizontal = 14.dp, vertical = 8.dp)
+                        .background(Color(0xC9000000)).padding(horizontal = 18.dp, vertical = 6.dp)
                 ) {
                     if (activeLayout == "Cinema") Text("CINEMA", color = purple, fontSize = 11.sp)
-                    if (!audioMode) Text("SWIPE TO SEEK  •  DOUBLE TAP TO SKIP", color = Color(0xFFB9B9C9), fontSize = 10.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+                    if (!audioMode && activity.resources.configuration.orientation != Configuration.ORIENTATION_LANDSCAPE) Text("SWIPE TO SEEK  •  DOUBLE TAP TO SKIP", color = Color(0xFFB9B9C9), fontSize = 10.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
                     Slider(
                         value = if (duration > 0) (progress.toFloat() / duration).coerceIn(0f, 1f) else 0f,
                         onValueChange = { if (duration > 0) player.seekTo((it * duration).toLong()); controlsInteraction++ }
