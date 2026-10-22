@@ -679,21 +679,23 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
                     Text(
                         when (infoPage) {
                             "About" -> """MH Player
-Version 1.0.0
+Version ${context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "Unknown"}
 
 Developed by MasoomDev.
 
-A lightweight offline audio and video player for files stored on your device.
+An audio and video player for local media files and supported network streams.
 
-Features include folder browsing, playback resume, audio equalizer, gesture controls, subtitles and optional background playback.
+Features include folders, playlists, playback resume, audio tracks, external subtitles, equalizer, gestures, Picture-in-Picture and optional background playback.
 
 No account or sign-in is required."""
                             "Privacy Policy" -> """MH Player Privacy Policy
 Last updated: 18 October 2026
 
-MH Player is an offline media player developed by MasoomDev.
+MH Player is a media player developed by MasoomDev for local media and user-provided network streams.
 
-Media access: With your permission, MH Player reads video and audio files on your device to show your media library and play selected files. It does not upload your media to a server.
+Media access: With your permission, MH Player reads video and audio files on your device to show your media library and play selected files. Local media is not uploaded to the developer by the app.
+
+Network streams: When you enter a stream URL, MH Player connects to that provider to play media. The provider may receive your IP address and standard request information.
 
 Local data: Playback positions, equalizer settings and player preferences are saved locally on your device. You can remove this app data using Android settings or by uninstalling the app.
 
@@ -709,7 +711,7 @@ Contact: Please use the support contact provided on the developer's website or G
                             "Terms & Conditions" -> """MH Player Terms & Conditions
 Last updated: 18 October 2026
 
-MH Player is provided as a local media playback utility.
+MH Player is provided as a media playback utility for local files and supported user-provided streams.
 
 You are responsible for ensuring that you have the right to access and play your media files. MH Player does not supply, host or distribute video or audio content.
 
@@ -885,6 +887,21 @@ Full license texts and dependency notices should be made available on the develo
                         Icon(Icons.Default.ChevronRight, "List settings", tint = purple)
                     }
                     Text("Library sorting and layout can be changed from the library view menu.", color = secondaryText)
+                    Text("UPDATES", color = purple, modifier = Modifier.padding(top = 20.dp))
+                    Row(Modifier.fillMaxWidth().clickable {
+                        val store = Uri.parse("market://details?id=${context.packageName}")
+                        val web = Uri.parse("https://play.google.com/store/apps/details?id=${context.packageName}")
+                        try { context.startActivity(Intent(Intent.ACTION_VIEW, store)) }
+                        catch (_: Exception) { try { context.startActivity(Intent(Intent.ACTION_VIEW, web)) } catch (_: Exception) {} }
+                    }.padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.SystemUpdate, "Check for Updates", tint = purple)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Check for Updates", color = foreground)
+                            Text("Open Google Play for available updates", color = secondaryText, fontSize = 12.sp)
+                        }
+                        Icon(Icons.Default.ChevronRight, null, tint = purple)
+                    }
                     Text("ABOUT & LEGAL", color = purple, modifier = Modifier.padding(top = 20.dp, bottom = 8.dp))
                     TextButton(onClick = {
                         val url = "https://masoomdev-website.vercel.app/apps/mh-player/privacy/"
