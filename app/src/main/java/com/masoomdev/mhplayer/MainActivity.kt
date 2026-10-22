@@ -826,99 +826,101 @@ Full license texts and dependency notices should be made available on the develo
                     })
             }
         } else if (settingsOpen) {
-            Column(Modifier.fillMaxSize().background(dark).padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+            val cardColor = MaterialTheme.colorScheme.surface
+            val muted = MaterialTheme.colorScheme.onSurfaceVariant
+            Column(Modifier.fillMaxSize().background(dark)) {
+                Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { settingsOpen = false }) { Icon(Icons.Default.ArrowBack, "Back", tint = foreground) }
-                    Text("Settings", fontSize = 26.sp, color = foreground)
+                    Text("Profile & Settings", fontSize = 23.sp, color = foreground)
                 }
-                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                    Text("PLAYBACK", color = purple, modifier = Modifier.padding(top = 20.dp))
-                    Text("Controls auto-hide: $autoHideSeconds seconds", color = foreground)
-                    Slider(value = autoHideSeconds.toFloat(), onValueChange = { autoHideSeconds = it.toInt().coerceIn(3, 15); prefs.edit().putInt("auto_hide", autoHideSeconds).apply() }, valueRange = 3f..15f, steps = 11)
-                    SettingsToggle("Resume playback", "Continue from saved position", resumePlayback) { resumePlayback = it; prefs.edit().putBoolean("resume", it).apply() }
-                    SettingsToggle("Auto-play", "Play immediately on opening a file", autoPlay) { autoPlay = it; prefs.edit().putBoolean("autoplay", it).apply() }
-                    SettingsToggle("Equalizer", "Audio effects for music and video playback (default off)", equalizerEnabled) { equalizerEnabled = it; prefs.edit().putBoolean("eq_enabled", it).apply() }
-                    TextButton(onClick = { equalizerOpen = true }) { Text("Equalizer bands & presets") }
-                    if (equalizerEnabled && !eqAvailable) Text("Equalizer is unavailable on this device or audio output.", color = Color.Yellow)
-                    SettingsToggle("Background playback", "Keep audio playing when you switch apps or lock the screen", backgroundPlay) { backgroundPlay = it; prefs.edit().putBoolean("background_play", it).apply() }
-                    Text("GESTURES", color = purple, modifier = Modifier.padding(top = 20.dp))
-                    SettingsToggle("Brightness swipe", "Left side vertical gesture", brightnessGesture) { brightnessGesture = it; prefs.edit().putBoolean("brightness_gesture", it).apply() }
-                    SettingsToggle("Volume swipe", "Right side vertical gesture", volumeGesture) { volumeGesture = it; prefs.edit().putBoolean("volume_gesture", it).apply() }
-                    Text("SEEK", color = purple, modifier = Modifier.padding(top = 20.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Skip duration", color = foreground, modifier = Modifier.weight(1f))
-                        FilterChip(selected = seekSeconds == 5L, onClick = { seekSeconds = 5L; prefs.edit().putLong("seek_seconds", 5L).apply() }, label = { Text("5s") })
-                        Spacer(Modifier.width(8.dp))
-                        FilterChip(selected = seekSeconds == 10L, onClick = { seekSeconds = 10L; prefs.edit().putLong("seek_seconds", 10L).apply() }, label = { Text("10s") })
-                        Spacer(Modifier.width(8.dp))
-                        FilterChip(selected = seekSeconds == 30L, onClick = { seekSeconds = 30L; prefs.edit().putLong("seek_seconds", 30L).apply() }, label = { Text("30s") })
-                    }
-                    Text("APPEARANCE", color = purple, modifier = Modifier.padding(top = 20.dp))
-                    Text("Theme", color = foreground)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("System", "White", "Dark", "Purple").forEach { option ->
-                            FilterChip(selected = themeChoice == option, onClick = {
-                                themeChoice = option; prefs.edit().putString("ui_theme", option).apply()
-                            }, label = { Text(option) })
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 14.dp)) {
+                    Card(Modifier.fillMaxWidth(), shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = cardColor)) {
+                        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Surface(shape = androidx.compose.foundation.shape.CircleShape, color = purple.copy(alpha = .15f)) {
+                                Icon(Icons.Default.PlayCircle, null, Modifier.padding(14.dp).size(26.dp), tint = purple)
+                            }
+                            Spacer(Modifier.width(14.dp))
+                            Column {
+                                Text("MH Player", color = foreground, fontSize = 19.sp)
+                                Text("Your media. Your device.", color = muted, fontSize = 12.sp)
+                            }
                         }
                     }
-                    Text("PLAYER LAYOUTS", color = purple, modifier = Modifier.padding(top = 20.dp))
-                    Text("Video player", color = foreground, modifier = Modifier.padding(top = 8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("Classic", "Modern", "Cinema").forEach { option ->
-                            FilterChip(selected = videoLayout == option, onClick = {
-                                videoLayout = option; prefs.edit().putString("video_layout", option).apply()
-                            }, label = { Text(option) })
+                    Spacer(Modifier.height(20.dp))
+                    SettingsSectionTitle("PLAYBACK", muted)
+                    Card(shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = cardColor)) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text("Controls auto-hide: $autoHideSeconds seconds", color = foreground)
+                            Slider(value = autoHideSeconds.toFloat(), onValueChange = { autoHideSeconds = it.toInt().coerceIn(3, 15); prefs.edit().putInt("auto_hide", autoHideSeconds).apply() }, valueRange = 3f..15f, steps = 11)
+                            SettingsToggle("Resume playback", "Continue from saved position", resumePlayback) { resumePlayback = it; prefs.edit().putBoolean("resume", it).apply() }
+                            SettingsToggle("Auto-play", "Play immediately when opening media", autoPlay) { autoPlay = it; prefs.edit().putBoolean("autoplay", it).apply() }
+                            SettingsToggle("Background playback", "Continue audio outside the app", backgroundPlay) { backgroundPlay = it; prefs.edit().putBoolean("background_play", it).apply() }
+                            Text("Skip duration", color = foreground)
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                listOf(5L, 10L, 30L).forEach { seconds ->
+                                    FilterChip(selected = seekSeconds == seconds, onClick = { seekSeconds = seconds; prefs.edit().putLong("seek_seconds", seconds).apply() }, label = { Text("${seconds}s") })
+                                }
+                            }
                         }
                     }
-                    Text("Audio player", color = foreground, modifier = Modifier.padding(top = 12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("Classic", "Modern", "Studio").forEach { option ->
-                            FilterChip(selected = audioLayout == option, onClick = {
-                                audioLayout = option; prefs.edit().putString("audio_layout", option).apply()
-                            }, label = { Text(option) })
+                    SettingsSectionTitle("AUDIO & GESTURES", muted)
+                    Card(shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = cardColor)) {
+                        Column(Modifier.padding(12.dp)) {
+                            SettingsToggle("Equalizer", "Audio effects for music and video", equalizerEnabled) { equalizerEnabled = it; prefs.edit().putBoolean("eq_enabled", it).apply() }
+                            SettingsNavRow(Icons.Default.Equalizer, "Equalizer bands & presets", "Adjust audio effects", purple) { equalizerOpen = true }
+                            if (equalizerEnabled && !eqAvailable) Text("Equalizer unavailable on this device", color = MaterialTheme.colorScheme.error)
+                            HorizontalDivider()
+                            SettingsToggle("Brightness swipe", "Left-side vertical gesture", brightnessGesture) { brightnessGesture = it; prefs.edit().putBoolean("brightness_gesture", it).apply() }
+                            SettingsToggle("Volume swipe", "Right-side vertical gesture", volumeGesture) { volumeGesture = it; prefs.edit().putBoolean("volume_gesture", it).apply() }
                         }
                     }
-                    Text("Audio and video layouts are saved independently.", color = secondaryText, fontSize = 12.sp)
-                    Text("LIBRARY", color = purple, modifier = Modifier.padding(top = 20.dp))
-                    Row(Modifier.fillMaxWidth().clickable { listSettingsOpen = true }.padding(vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        Text("List", color = foreground, modifier = Modifier.weight(1f))
-                        Icon(Icons.Default.ChevronRight, "List settings", tint = purple)
-                    }
-                    Text("Library sorting and layout can be changed from the library view menu.", color = secondaryText)
-                    Text("UPDATES", color = purple, modifier = Modifier.padding(top = 20.dp))
-                    Row(Modifier.fillMaxWidth().clickable {
-                        val store = Uri.parse("market://details?id=${context.packageName}")
-                        val web = Uri.parse("https://play.google.com/store/apps/details?id=${context.packageName}")
-                        try { context.startActivity(Intent(Intent.ACTION_VIEW, store)) }
-                        catch (_: Exception) { try { context.startActivity(Intent(Intent.ACTION_VIEW, web)) } catch (_: Exception) {} }
-                    }.padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.SystemUpdate, "Check for Updates", tint = purple)
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text("Check for Updates", color = foreground)
-                            Text("Open Google Play for available updates", color = secondaryText, fontSize = 12.sp)
+                    SettingsSectionTitle("APPEARANCE", muted)
+                    Card(shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = cardColor)) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text("Theme", color = foreground)
+                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                listOf("System", "White", "Dark", "Purple").forEach { option ->
+                                    FilterChip(selected = themeChoice == option, onClick = { themeChoice = option; prefs.edit().putString("ui_theme", option).apply() }, label = { Text(option) })
+                                }
+                            }
+                            Text("Video player layout", color = foreground)
+                            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                listOf("Classic", "Modern", "Cinema").forEach { option ->
+                                    FilterChip(selected = videoLayout == option, onClick = { videoLayout = option; prefs.edit().putString("video_layout", option).apply() }, label = { Text(option) })
+                                }
+                            }
+                            Text("Audio player layout", color = foreground)
+                            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                listOf("Classic", "Modern", "Studio").forEach { option ->
+                                    FilterChip(selected = audioLayout == option, onClick = { audioLayout = option; prefs.edit().putString("audio_layout", option).apply() }, label = { Text(option) })
+                                }
+                            }
                         }
-                        Icon(Icons.Default.ChevronRight, null, tint = purple)
                     }
-                    Text("ABOUT & LEGAL", color = purple, modifier = Modifier.padding(top = 20.dp, bottom = 8.dp))
-                    TextButton(onClick = {
-                        val url = "https://masoomdev-website.vercel.app/apps/mh-player/privacy/"
-                        try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) {}
-                    }) { Text("View public Privacy Policy ↗") }
-                    TextButton(onClick = {
-                        val url = "https://masoomdev-website.vercel.app/apps/mh-player/"
-                        try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (_: Exception) {}
-                    }) { Text("MH Player website ↗") }
-                    listOf("About", "Privacy Policy", "Terms & Conditions", "Open Source Licenses").forEach { page ->
-                        Row(Modifier.fillMaxWidth().clickable { infoPage = page }.padding(vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(page, color = foreground, modifier = Modifier.weight(1f))
-                            Icon(Icons.Default.ChevronRight, null, tint = secondaryText)
+                    SettingsSectionTitle("LIBRARY", muted)
+                    Card(shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = cardColor)) {
+                        SettingsNavRow(Icons.Default.Folder, "Library & folder settings", "Folders, hidden media and list options", purple) { listSettingsOpen = true }
+                    }
+                    SettingsSectionTitle("APP & SUPPORT", muted)
+                    Card(shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = cardColor)) {
+                        SettingsNavRow(Icons.Default.SystemUpdate, "Check for Updates", "View available updates on Google Play", purple) {
+                            val store = Uri.parse("market://details?id=${context.packageName}")
+                            val web = Uri.parse("https://play.google.com/store/apps/details?id=${context.packageName}")
+                            try { context.startActivity(Intent(Intent.ACTION_VIEW, store)) }
+                            catch (_: Exception) { try { context.startActivity(Intent(Intent.ACTION_VIEW, web)) } catch (_: Exception) {} }
                         }
-                        HorizontalDivider(color = Color(0xFF30364C))
+                        HorizontalDivider(Modifier.padding(horizontal = 14.dp))
+                        SettingsNavRow(Icons.Default.Info, "About MH Player", "Version and developer information", purple) { infoPage = "About" }
+                        SettingsNavRow(Icons.Default.PrivacyTip, "Privacy Policy", "How MH Player handles your data", purple) {
+                            try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://masoomdev-website.vercel.app/apps/mh-player/privacy/"))) } catch (_: Exception) { infoPage = "Privacy Policy" }
+                        }
+                        SettingsNavRow(Icons.Default.Description, "Terms & Conditions", null, purple) { infoPage = "Terms & Conditions" }
+                        SettingsNavRow(Icons.Default.Code, "Open Source Licenses", null, purple) { infoPage = "Open Source Licenses" }
+                        SettingsNavRow(Icons.Default.Language, "MH Player website", "MasoomDev", purple) {
+                            try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://masoomdev-website.vercel.app/apps/mh-player/"))) } catch (_: Exception) {}
+                        }
                     }
-                    Text("MH Player • Offline • ExoPlayer", color = secondaryText, modifier = Modifier.padding(top = 24.dp))
+                    Text("MH Player • Developed by MasoomDev", modifier = Modifier.fillMaxWidth().padding(vertical = 26.dp), color = muted, fontSize = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
             }
         } else if (selected != null) {
@@ -1370,5 +1372,25 @@ private fun SettingsToggle(title: String, subtitle: String, checked: Boolean, on
             Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
         }
         Switch(checked = checked, onCheckedChange = onChange)
+    }
+}
+
+@Composable
+private fun SettingsSectionTitle(title: String, color: Color) {
+    Text(title, color = color, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp, top = 20.dp, bottom = 8.dp), letterSpacing = 1.sp)
+}
+
+@Composable
+private fun SettingsNavRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String?, accent: Color, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+        Surface(color = accent.copy(alpha = .10f), shape = androidx.compose.foundation.shape.RoundedCornerShape(9.dp)) {
+            Icon(icon, null, Modifier.padding(9.dp).size(20.dp), tint = accent)
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium)
+            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
     }
 }
