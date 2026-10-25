@@ -2,7 +2,7 @@ plugins { id("com.android.application"); id("org.jetbrains.kotlin.android"); id(
 android {
  namespace = "com.masoomdev.mhplayer"
  compileSdk = 36
- defaultConfig { applicationId = "com.masoomdev.mhplayer"; minSdk = 24; targetSdk = 36; versionCode = 25; versionName = "1.0.24" }
+ defaultConfig { applicationId = "com.masoomdev.mhplayer"; minSdk = 24; targetSdk = 36; versionCode = 26; versionName = "1.0.25" }
  val releaseStoreFile = System.getenv("MH_KEYSTORE_PATH")
  signingConfigs {
   if (!releaseStoreFile.isNullOrBlank()) {
@@ -15,7 +15,9 @@ android {
   }
  }
  buildTypes { release {
-  isMinifyEnabled = false
+  isMinifyEnabled = true
+  isShrinkResources = true
+  proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
   if (!releaseStoreFile.isNullOrBlank()) signingConfig = signingConfigs.getByName("release")
  } }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
