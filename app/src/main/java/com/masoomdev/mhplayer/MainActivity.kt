@@ -29,6 +29,9 @@ import android.content.pm.ActivityInfo
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.SystemBarStyle
+import androidx.core.view.WindowCompat
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -125,8 +128,7 @@ class MainActivity : ComponentActivity() {
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = android.graphics.Color.rgb(13,16,32)
-        window.navigationBarColor = android.graphics.Color.rgb(13,16,32)
+        enableEdgeToEdge(statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT), navigationBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT))
         setContent { PlayerApp(this, intent?.data) }
     }
 }
@@ -243,14 +245,9 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     val foreground = if (lightTheme) Color(0xFF151827) else Color.White
     val secondaryText = if (lightTheme) Color(0xFF565D70) else Color.LightGray
     SideEffect {
-        val barColor = if (lightTheme) android.graphics.Color.rgb(248,249,253)
-            else if (themeChoice == "Dark") android.graphics.Color.rgb(17,19,24)
-            else android.graphics.Color.rgb(13,16,32)
-        activity.window.statusBarColor = barColor
-        activity.window.navigationBarColor = barColor
-        @Suppress("DEPRECATION")
-        activity.window.decorView.systemUiVisibility = if (lightTheme)
-            android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0
+        val controller = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+        controller.isAppearanceLightStatusBars = lightTheme
+        controller.isAppearanceLightNavigationBars = lightTheme
     }
     var showHidden by remember { mutableStateOf(prefs.getBoolean("list_show_hidden", false)) }
     var includedFolders by remember { mutableStateOf(prefs.getString("list_folders", "") ?: "") }
@@ -599,6 +596,7 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
         lightColorScheme(primary = purple, background = dark, surface = Color.White, onBackground = foreground, onSurface = foreground)
         else darkColorScheme(primary = purple, background = dark,
             surface = if (themeChoice == "Dark") Color(0xFF20232A) else Color(0xFF1A2034))) {
+        Box(Modifier.fillMaxSize().then(if (selected == null || pipActive) Modifier.safeDrawingPadding() else Modifier)) {
         if (quickSettingsOpen && selected != null && !pipActive) {
             AlertDialog(
                 onDismissRequest = { quickSettingsOpen = false },
@@ -1360,6 +1358,7 @@ Full license texts and dependency notices should be made available on the develo
                     }
                 }
             }
+        }
         }
     }
 }
