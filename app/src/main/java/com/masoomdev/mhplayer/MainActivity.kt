@@ -41,6 +41,7 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -253,6 +254,7 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     var includedFolders by remember { mutableStateOf(prefs.getString("list_folders", "") ?: "") }
     var foldersDialog by remember { mutableStateOf(false) }
     var lastPlayedUri by remember { mutableStateOf(prefs.getString("last_played_uri", "") ?: "") }
+    var recentUris by remember { mutableStateOf((prefs.getString("recent_played_uris", "") ?: "").split("|").filter { it.isNotBlank() }) }
     val scope = rememberCoroutineScope()
     var scanJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     fun refreshMedia() {
@@ -410,7 +412,8 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
         holdSpeedActive = false
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         lastPlayedUri = item.uri.toString()
-        prefs.edit().putString("last_played_uri", lastPlayedUri).apply()
+        recentUris = (listOf(lastPlayedUri) + recentUris.filter { it != lastPlayedUri }).take(12)
+        prefs.edit().putString("last_played_uri", lastPlayedUri).putString("recent_played_uris", recentUris.joinToString("|")).apply()
         val alreadyPlaying = player.currentMediaItem?.localConfiguration?.uri == item.uri && player.mediaItemCount > 0
         if (!alreadyPlaying) {
             val queue = if (playlistOnly) media.filter { it.uri.toString() in playlistUris && it.video == showVideo }
@@ -1173,9 +1176,34 @@ Full license texts and dependency notices should be made available on the develo
                 Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("MH Player", fontSize = 30.sp, color = foreground, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { settingsOpen = true }) { Icon(Icons.Default.Settings, "Settings", tint = purple) }
+                    var mainMenuExpanded by remember { mutableStateOf(false) }
+                    IconButton(onClick = { searchText = ""; libraryOptions = true }) { Icon(Icons.Default.Search, "Search and filter", tint = purple) }
+                    Box {
+                        IconButton(onClick = { mainMenuExpanded = true }) { Icon(Icons.Default.MoreVert, "More options", tint = purple) }
+                        DropdownMenu(expanded = mainMenuExpanded, onDismissRequest = { mainMenuExpanded = false }) {
+                            DropdownMenuItem(text = { Text("Select file / folder") }, leadingIcon = { Icon(Icons.Default.FolderOpen, null) }, onClick = { mainMenuExpanded = false; filePicker.launch(arrayOf("video/*", "audio/*", "*/*")) })
+                            DropdownMenuItem(text = { Text("Refresh") }, leadingIcon = { Icon(Icons.Default.Refresh, null) }, onClick = { mainMenuExpanded = false; refreshMedia() })
+                            DropdownMenuItem(text = { Text("Equalizer") }, leadingIcon = { Icon(Icons.Default.Equalizer, null) }, onClick = { mainMenuExpanded = false; settingsOpen = true })
+                            DropdownMenuItem(text = { Text("Settings") }, leadingIcon = { Icon(Icons.Default.Settings, null) }, onClick = { mainMenuExpanded = false; settingsOpen = true })
+                            DropdownMenuItem(text = { Text("Suggest features") }, leadingIcon = { Icon(Icons.Default.Feedback, null) }, onClick = { mainMenuExpanded = false; val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:")).putExtra(Intent.EXTRA_SUBJECT, "MH Player feature suggestion"); try { activity.startActivity(intent) } catch (_: Exception) {} })
+                        }
+                    }
                 }
                 Text("Offline video & audio", color = secondaryText)
+                val recentItems = remember(media, recentUris) { recentUris.mapNotNull { uri -> media.firstOrNull { it.uri.toString() == uri } } }
+                if (recentItems.isNotEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    Text("Last played", color = foreground, fontSize = 18.sp)
+                    Spacer(Modifier.height(6.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(recentItems, key = { it.uri.toString() }) { item ->
+                            Column(Modifier.width(136.dp).clickable { selected = item }) {
+                                MediaThumbnail(item, Modifier.fillMaxWidth().height(82.dp))
+                                Text(item.title, color = foreground, maxLines = 1, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
                 Spacer(Modifier.height(20.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     FilterChip(selected = showVideo, onClick = { showVideo = true; currentFolder = null }, label = { Text("Videos") })
