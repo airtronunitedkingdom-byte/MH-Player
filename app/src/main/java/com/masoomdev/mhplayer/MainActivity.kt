@@ -705,7 +705,8 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.PlayCircle, null, Modifier.size(86.dp), tint = purple); Spacer(Modifier.height(12.dp)); Text("MH PLAYER", fontSize = 32.sp, color = foreground); Text("Your media. Your device.", color = secondaryText) }
             }
         } else if (infoPage != null) {
-            Column(Modifier.fillMaxSize().background(dark).padding(16.dp)) {
+            Box(Modifier.fillMaxSize().background(dark)) {
+            Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 74.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { infoPage = null }) { Icon(Icons.Default.ArrowBack, "Back", tint = foreground) }
                     Text(infoPage ?: "", fontSize = 24.sp, color = foreground)
@@ -1359,31 +1360,6 @@ Full license texts and dependency notices should be made available on the develo
                     }
                 }
                 Spacer(Modifier.height(20.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    FilterChip(selected = showVideo, onClick = { showVideo = true; currentFolder = null }, label = { Text("Videos") })
-                    Spacer(Modifier.width(12.dp))
-                    FilterChip(selected = !showVideo, onClick = { showVideo = false; currentFolder = null }, label = { Text("Music") })
-                    Spacer(Modifier.width(8.dp))
-                    FilterChip(selected = playlistOnly, onClick = { playlistOnly = !playlistOnly; currentFolder = null }, label = { Text("Playlist") })
-                }
-                Spacer(Modifier.height(12.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { refreshMedia() }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 6.dp)) {
-                        Text("Refresh", maxLines = 1)
-                    }
-                    OutlinedButton(onClick = { libraryOptions = true }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 6.dp)) {
-                        Text("View / Sort", maxLines = 1)
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { filePicker.launch(arrayOf("video/*", "audio/*", "application/octet-stream")) }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 6.dp)) {
-                        Text("Open file", maxLines = 1)
-                    }
-                    Button(onClick = { streamDialog = true; streamError = "" }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 6.dp)) {
-                        Text("Network stream", maxLines = 1)
-                    }
-                }
                 if (libraryOptions) AlertDialog(
                     onDismissRequest = { libraryOptions = false },
                     title = { Text("Library view & sort") },
@@ -1432,8 +1408,6 @@ Full license texts and dependency notices should be made available on the develo
                     },
                     confirmButton = { TextButton(onClick = { libraryOptions = false }) { Text("Done") } }
                 )
-                OutlinedTextField(value = searchText, onValueChange = { searchText = it }, label = { Text("Search folders or files") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
                 if (currentFolder != null) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = { currentFolder = null }) { Icon(Icons.Default.ArrowBack, "Folders", tint = purple) }
@@ -1555,6 +1529,17 @@ Full license texts and dependency notices should be made available on the develo
                         }
                     }
                 }
+            }
+            Row(
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(dark)
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                FilterChip(selected = showVideo && !playlistOnly, onClick = { showVideo = true; playlistOnly = false; currentFolder = null }, label = { Text("Videos") })
+                FilterChip(selected = !showVideo && !playlistOnly, onClick = { showVideo = false; playlistOnly = false; currentFolder = null }, label = { Text("Music") })
+                FilterChip(selected = playlistOnly, onClick = { playlistOnly = true; currentFolder = null }, label = { Text("Playlist") })
+            }
             }
         }
         }
