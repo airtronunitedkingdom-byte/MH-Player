@@ -705,8 +705,7 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.PlayCircle, null, Modifier.size(86.dp), tint = purple); Spacer(Modifier.height(12.dp)); Text("MH PLAYER", fontSize = 32.sp, color = foreground); Text("Your media. Your device.", color = secondaryText) }
             }
         } else if (infoPage != null) {
-            Box(Modifier.fillMaxSize().background(dark)) {
-            Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 74.dp)) {
+            Column(Modifier.fillMaxSize().background(dark).padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { infoPage = null }) { Icon(Icons.Default.ArrowBack, "Back", tint = foreground) }
                     Text(infoPage ?: "", fontSize = 24.sp, color = foreground)
@@ -1309,7 +1308,8 @@ Full license texts and dependency notices should be made available on the develo
                 }
             }
         } else {
-            Column(Modifier.fillMaxSize().background(dark).padding(16.dp)) {
+            Box(Modifier.fillMaxSize().background(dark)) {
+            Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 74.dp)) {
                 Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("MH Player", fontSize = 30.sp, color = foreground, modifier = Modifier.weight(1f))
