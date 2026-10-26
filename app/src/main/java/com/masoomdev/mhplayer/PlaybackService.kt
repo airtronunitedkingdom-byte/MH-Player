@@ -7,6 +7,8 @@ import android.app.PendingIntent
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.media3.common.Player
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -21,7 +23,10 @@ object PlaybackHolder {
         return instance ?: ExoPlayer.Builder(
             context.applicationContext,
             DefaultRenderersFactory(context.applicationContext).setEnableDecoderFallback(true)
-        ).setLoadControl(
+        ).setAudioAttributes(
+            AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),
+            true
+        ).setHandleAudioBecomingNoisy(true).setLoadControl(
             DefaultLoadControl.Builder().setBufferDurationsMs(15_000, 50_000, 1_000, 2_000).build()
         ).build().also { instance = it }
     }
@@ -96,6 +101,16 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        val player = PlaybackHolder.player(this)
+        player.pause()
+        player.stop()
+        player.clearMediaItems()
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
+    }
 
     override fun onDestroy() {
         PlaybackHolder.player(this).removeListener(listener)
