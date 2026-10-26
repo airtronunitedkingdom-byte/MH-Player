@@ -1359,7 +1359,7 @@ Full license texts and dependency notices should be made available on the develo
                         if (previous != null) {
                             Text("Last played", color = foreground, fontSize = 18.sp)
                             Row(Modifier.fillMaxWidth().clickable { selected = previous }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                MediaThumbnail(previous, Modifier.size(width = 112.dp, height = 64.dp))
+                                Column { MediaThumbnail(previous, Modifier.size(width = 112.dp, height = 64.dp)); WatchProgress(previous, prefs, Modifier.width(112.dp)) }
                                 Spacer(Modifier.width(10.dp))
                                 Text(previous.title, color = foreground, maxLines = 2)
                             }
@@ -1374,6 +1374,7 @@ Full license texts and dependency notices should be made available on the develo
                         items(recentItems, key = { it.uri.toString() }) { item ->
                             Column(Modifier.width(136.dp).clickable { selected = item }) {
                                 MediaThumbnail(item, Modifier.fillMaxWidth().height(82.dp))
+                                WatchProgress(item, prefs, Modifier.fillMaxWidth())
                                 Text(item.title, color = foreground, maxLines = 1, fontSize = 12.sp)
                             }
                         }
@@ -1477,6 +1478,13 @@ Full license texts and dependency notices should be made available on the develo
                                 Column(Modifier.weight(1f)) {
                                     Text(folder.key.substringAfterLast('/').ifBlank { "Device storage" }, color = foreground, fontSize = 17.sp)
                                     Text(folder.key + " • " + folder.value.size + " files", color = secondaryText, fontSize = 12.sp, maxLines = 2)
+                                    val watchedCount = folder.value.count { entry ->
+                                        entry.video && prefs.getLong("position_${entry.uri}", 0L) > 0L
+                                    }
+                                    if (watchedCount > 0) Text(
+                                        "${watchedCount} of ${folder.value.count { it.video }} videos started",
+                                        color = Color(0xFF31C66B), fontSize = 11.sp
+                                    )
                                     if (markLastPlayed && folder.value.any { it.uri.toString() == lastPlayedUri }) {
                                         Text("Last played", color = purple, fontSize = 12.sp)
                                     }
@@ -1521,6 +1529,7 @@ Full license texts and dependency notices should be made available on the develo
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     MediaThumbnail(item, Modifier.size(width = 112.dp, height = 70.dp))
+                                    WatchProgress(item, prefs, Modifier.width(112.dp))
                                     Spacer(Modifier.height(8.dp))
                                     Text(item.title, color = foreground, maxLines = 2)
                                     TextButton(onClick = { togglePlaylist(item) }) { Text(if (item.uri.toString() in playlistUris) "Remove" else "+ Playlist") }
@@ -1535,7 +1544,7 @@ Full license texts and dependency notices should be made available on the develo
                             items(sorted, key = { it.uri.toString() }) { item ->
                                 Row(Modifier.fillMaxWidth().clickable { selected = item }.padding(vertical = 15.dp),
                                     verticalAlignment = Alignment.CenterVertically) {
-                                    MediaThumbnail(item, Modifier.size(width = 76.dp, height = 50.dp))
+                                    Column { MediaThumbnail(item, Modifier.size(width = 76.dp, height = 50.dp)); WatchProgress(item, prefs, Modifier.width(76.dp)) }
                                     Spacer(Modifier.width(12.dp))
                                     Column(Modifier.weight(1f)) {
                                         Text(item.title, color = foreground, maxLines = 2)
