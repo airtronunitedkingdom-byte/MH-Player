@@ -295,6 +295,16 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     var folderDeleteDialog by remember { mutableStateOf(false) }
     var folderAliases by remember { mutableStateOf(emptyMap<String, String>()) }
     var showFolderActions by remember { mutableStateOf(false) }
+    LaunchedEffect(sleepDeadline) {
+        while (sleepDeadline > 0L) {
+            val remaining = sleepDeadline - android.os.SystemClock.elapsedRealtime()
+            if (remaining <= 0L) { player.pause(); sleepDeadline = 0L; break }
+            delay(minOf(remaining, 1000L))
+        }
+    }
+    if (folderRenameDialog) AlertDialog(onDismissRequest = { folderRenameDialog = false }, title = { Text("Rename folder") }, text = { Text("Android MediaStore folders cannot be renamed safely without document-tree permission. Use your file manager to rename this folder.") }, confirmButton = { TextButton(onClick = { folderRenameDialog = false }) { Text("OK") } })
+    if (folderDeleteDialog) AlertDialog(onDismissRequest = { folderDeleteDialog = false }, title = { Text("Delete folder") }, text = { Text("For safety, delete the folder using your file manager. No files have been deleted.") }, confirmButton = { TextButton(onClick = { folderDeleteDialog = false }) { Text("OK") } })
+
     var pinchZoom by remember { mutableFloatStateOf(1f) }
     var repeatOne by remember { mutableStateOf(false) }
     var seekSeconds by remember { mutableLongStateOf(prefs.getLong("seek_seconds", 10L)) }
