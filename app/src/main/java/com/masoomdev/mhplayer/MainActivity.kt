@@ -1134,29 +1134,7 @@ Full license texts and dependency notices should be made available on the develo
                             Icon(Icons.Default.ArrowBack, "Back", tint = foreground)
                         }
                         Column(Modifier.weight(1f)) { Text(selected?.title ?: "", color = foreground, maxLines = 1, fontSize = 16.sp); Text(if (audioMode) "AUDIO PLAYER" else "VIDEO PLAYER", color = Color(0xFFB5A1FF), fontSize = 10.sp) }
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && selected?.video == true) {
-                            IconButton(onClick = {
-                                try {
-                                    val params = PictureInPictureParams.Builder()
-                                        .setAspectRatio(Rational(16, 9)).build()
-                                    activity.enterPictureInPictureMode(params)
-                                } catch (_: Exception) { }
-                            }) {
-                                Icon(Icons.Default.PictureInPictureAlt, "Picture-in-Picture", tint = purple)
-                            }
-                        }
-                        if (!locked) IconButton(onClick = { trackDialog = true; controlsInteraction++ }) { Icon(Icons.Default.Audiotrack, "Audio tracks", tint = purple) }
-                        if (!locked) IconButton(onClick = { subtitleDialog = true; controlsInteraction++ }) { Icon(Icons.Default.Subtitles, "Subtitles", tint = purple) }
-                        if (!locked) IconButton(onClick = {
-                            quickSettingsOpen = true
-                            controlsVisible = true
-                            controlsInteraction++
-                        }) {
-                            Icon(Icons.Default.Settings, "Playback settings", tint = purple)
-                        }
-                        IconButton(onClick = { locked = !locked; controlsInteraction++ }) {
-                            Icon(if (locked) Icons.Default.Lock else Icons.Default.LockOpen, "Lock controls", tint = purple)
-                        }
+
                     }
                 }
                 if (!pipActive && !locked && (controlsVisible || audioMode)) {
