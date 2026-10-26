@@ -240,7 +240,7 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     var includeAndroidMedia by remember { mutableStateOf(prefs.getBoolean("include_android_media", false)) }
     var videoLayout by remember { mutableStateOf(prefs.getString("video_layout", "Classic") ?: "Classic") }
     var audioLayout by remember { mutableStateOf(prefs.getString("audio_layout", "Classic") ?: "Classic") }
-    var themeChoice by remember { mutableStateOf(prefs.getString("ui_theme", "System") ?: "System") }
+    var themeChoice by remember { mutableStateOf(prefs.getString("ui_theme", "White") ?: "White") }
     val lightTheme = themeChoice == "White" || (themeChoice == "System" && !isSystemInDarkTheme())
     val dark = when { lightTheme -> Color(0xFFF8F9FD); themeChoice == "Dark" || themeChoice == "System" -> Color(0xFF111318); else -> Color(0xFF0D1020) }
     val purple = when { lightTheme -> Color(0xFF4259A7); themeChoice == "Dark" || themeChoice == "System" -> Color(0xFF8EA3FF); else -> Color(0xFF9B72FF) }
@@ -281,7 +281,7 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     var resizeChoice by remember { mutableIntStateOf(prefs.getInt("ratio_mode", 0)) }
     var ratioMenu by remember { mutableStateOf(false) }
     var rememberRatio by remember { mutableStateOf(prefs.getBoolean("remember_ratio", false)) }
-    var overlayOpacity by remember { mutableFloatStateOf(prefs.getFloat("overlay_opacity", .90f)) }
+    var overlayOpacity by remember { mutableFloatStateOf(prefs.getFloat("overlay_opacity", 1f)) }
     var playerMoreMenu by remember { mutableStateOf(false) }
     var playerActionsMenu by remember { mutableStateOf(false) }
     var orientationLocked by remember { mutableStateOf(false) }
@@ -879,6 +879,9 @@ Full license texts and dependency notices should be made available on the develo
                     SettingsSectionTitle("PLAYBACK", muted)
                     Card(shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = cardColor)) {
                         Column(Modifier.padding(12.dp)) {
+                            Text("Video controls opacity: ${(overlayOpacity * 100).toInt()}%", color = foreground)
+                            Slider(value = overlayOpacity, onValueChange = { overlayOpacity = it; prefs.edit().putFloat("overlay_opacity", it).apply() }, valueRange = .1f..1f)
+                            HorizontalDivider()
                             Text("Controls auto-hide: $autoHideSeconds seconds", color = foreground)
                             Slider(value = autoHideSeconds.toFloat(), onValueChange = { autoHideSeconds = it.toInt().coerceIn(3, 15); prefs.edit().putInt("auto_hide", autoHideSeconds).apply() }, valueRange = 3f..15f, steps = 11)
                             SettingsToggle("Resume playback", "Continue from saved position", resumePlayback) { resumePlayback = it; prefs.edit().putBoolean("resume", it).apply() }
@@ -1221,11 +1224,6 @@ Full license texts and dependency notices should be made available on the develo
                     }
                     if (activeLayout == "Cinema") Text("CINEMA", color = purple, fontSize = 11.sp)
                     if (!audioMode && activity.resources.configuration.orientation != Configuration.ORIENTATION_LANDSCAPE) Text("SWIPE TO SEEK  •  DOUBLE TAP TO SKIP", color = Color(0xFFB9B9C9), fontSize = 10.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Opacity, "Controls opacity", tint = Color.White, modifier = Modifier.size(18.dp))
-                        Slider(value = overlayOpacity, onValueChange = { overlayOpacity = it; prefs.edit().putFloat("overlay_opacity", it).apply() }, valueRange = .1f..1f, modifier = Modifier.weight(1f))
-                        Text("$"+"{(overlayOpacity*100).toInt()}%", color = Color.White, fontSize = 11.sp)
-                    }
                     Slider(
                         value = if (duration > 0) (progress.toFloat() / duration).coerceIn(0f, 1f) else 0f,
                         onValueChange = { if (duration > 0) player.seekTo((it * duration).toLong()); controlsInteraction++ }
