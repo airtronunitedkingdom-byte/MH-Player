@@ -84,7 +84,7 @@ import kotlinx.coroutines.launch
 
 private val dark = Color(0xFF0D1020)
 private val purple = Color(0xFF9B72FF)
-private data class LocalMedia(val title: String, val uri: Uri, val video: Boolean, val duration: Long, val folder: String, val size: Long, val dateAdded: Long)
+data class LocalMedia(val title: String, val uri: Uri, val video: Boolean, val duration: Long, val folder: String, val size: Long, val dateAdded: Long)
 
 // Keep decoded previews bounded; only visible lazy-list items request a thumbnail.
 private val thumbnailCache = object : LruCache<String, Bitmap>(8 * 1024 * 1024) {
@@ -1329,6 +1329,9 @@ Full license texts and dependency notices should be made available on the develo
                 if (searchExpanded) {
                     OutlinedTextField(value = searchText, onValueChange = { searchText = it }, label = { Text("Search files and folders") }, leadingIcon = { Icon(Icons.Default.Search, null) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 }
+                if (playlistOnly) {
+                    PlaylistLibrary(prefs = prefs, media = media.filter { includeAndroidMedia || !it.folder.trimStart('/').startsWith("Android/", ignoreCase = true) }, onPlay = { selected = it })
+                } else {
                 val recentItems = remember(media, recentUris) { recentUris.mapNotNull { uri -> media.firstOrNull { it.uri.toString() == uri } } }
                 run {
                     Spacer(Modifier.height(12.dp))
@@ -1536,6 +1539,7 @@ Full license texts and dependency notices should be made available on the develo
                             }
                         }
                     }
+                }
                 }
             }
             Row(
