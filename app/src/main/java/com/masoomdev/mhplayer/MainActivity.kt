@@ -1131,35 +1131,9 @@ Full license texts and dependency notices should be made available on the develo
                             Icon(if (locked) Icons.Default.Lock else Icons.Default.LockOpen, "Lock controls", tint = purple)
                         }
                     }
-                    if (!locked && activeLayout != "Cinema") Row(
-                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box {
-                            TextButton(onClick = { speedMenu = true; controlsInteraction++ }) { Text("${playbackSpeed}x") }
-                            DropdownMenu(expanded = speedMenu, onDismissRequest = { speedMenu = false }) {
-                                listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f).forEach { value ->
-                                    DropdownMenuItem(text = { Text("${value}x") }, onClick = {
-                                        playbackSpeed = value; player.setPlaybackSpeed(value); speedMenu = false; controlsInteraction++
-                                    })
-                                }
-                            }
-                        }
-                        TextButton(onClick = { subtitlePicker.launch(arrayOf("*/*")); controlsInteraction++ }) { Text("+ Subtitle") }
-                        TextButton(onClick = {
-                            resizeChoice = when (resizeChoice) { 0 -> 2; 2 -> 3; else -> 0 }
-                            controlsInteraction++
-                        }) { Text("View: " + when (resizeChoice) { 0 -> "Fit"; 2 -> "Zoom"; else -> "Stretch" }) }
-                        TextButton(onClick = {
-                            repeatOne = !repeatOne
-                            player.repeatMode = if (repeatOne) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
-                            controlsInteraction++
-                        }) { Text(if (repeatOne) "Repeat on" else "Repeat off") }
-                    }
                 }
                 if (!pipActive && !locked && (controlsVisible || audioMode)) {
-                    Row(Modifier.align(Alignment.TopStart).padding(top = 65.dp, start = 4.dp).background(Color.Transparent), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.align(Alignment.TopStart).padding(top = 54.dp, start = 4.dp).background(Color.Transparent), verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = { player.pause(); controlsInteraction++ }) { Icon(Icons.Default.Headphones, "Background play", tint = Color.White) }
                         IconButton(onClick = { orientationLocked = !orientationLocked; activity.requestedOrientation = if (orientationLocked) (if (activity.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_PORTRAIT) else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED; controlsInteraction++ }) { Icon(Icons.Default.ScreenRotation, "Orientation lock", tint = Color.White) }
                         IconButton(onClick = { equalizerOpen = true; controlsInteraction++ }) { Icon(Icons.Default.Equalizer, "Equalizer", tint = Color.White) }
@@ -1176,7 +1150,7 @@ Full license texts and dependency notices should be made available on the develo
                             }
                         }
                     }
-                    Row(Modifier.align(Alignment.TopEnd).padding(top = 114.dp, end = 4.dp).background(Color.Transparent), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.align(Alignment.TopEnd).padding(top = 54.dp, end = 4.dp).background(Color.Transparent), verticalAlignment = Alignment.CenterVertically) {
                         Box {
                             IconButton(onClick = { sleepMenu = true }) { Icon(Icons.Default.Timer, "Sleep timer", tint = Color.White) }
                             DropdownMenu(expanded = sleepMenu, onDismissRequest = { sleepMenu = false }) {
