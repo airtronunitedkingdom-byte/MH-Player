@@ -93,6 +93,27 @@ private val thumbnailCache = object : LruCache<String, Bitmap>(8 * 1024 * 1024) 
 private val thumbnailSlots = Semaphore(3)
 
 @Composable
+private fun WatchProgress(item: LocalMedia, prefs: android.content.SharedPreferences, modifier: Modifier = Modifier) {
+    if (!item.video) return
+    val position = prefs.getLong("position_${item.uri}", 0L).coerceAtLeast(0L)
+    val total = maxOf(item.duration, prefs.getLong("duration_${item.uri}", 0L))
+    if (total <= 0L || position <= 0L) return
+    val fraction = (position.toFloat() / total).coerceIn(0f, 1f)
+    Column(modifier) {
+        LinearProgressIndicator(
+            progress = { fraction },
+            modifier = Modifier.fillMaxWidth().height(3.dp),
+            color = Color(0xFF31C66B),
+            trackColor = Color(0xFFBFC5CF).copy(alpha = 0.45f)
+        )
+        Text(
+            if (fraction >= 0.95f) "Watched" else "${(fraction * 100).toInt()}% watched",
+            color = Color(0xFF31C66B), fontSize = 10.sp, maxLines = 1
+        )
+    }
+}
+
+@Composable
 private fun MediaThumbnail(item: LocalMedia, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val key = item.uri.toString()
@@ -483,14 +504,14 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
             if (playing != nextPlaying) playing = nextPlaying
             val now = android.os.SystemClock.elapsedRealtime()
             if (nextProgress > 0 && now - lastSavedAt >= 5000L) {
-                prefs.edit().putLong("position_${current.uri}", nextProgress).apply()
+                prefs.edit().putLong("position_${current.uri}", nextProgress).putLong("duration_${current.uri}", nextDuration).apply()
                 lastSavedAt = now
             }
             delay(if (nextPlaying) 1000L else 1500L)
         }
     }
     fun closePlayer() {
-        selected?.let { prefs.edit().putLong("position_${it.uri}", player.currentPosition.coerceAtLeast(0L)).apply() }
+        selected?.let { prefs.edit().putLong("position_${it.uri}", player.currentPosition.coerceAtLeast(0L)).putLong("duration_${it.uri}", player.duration.coerceAtLeast(0L)).apply() }
         player.pause(); player.clearMediaItems(); if (holdSpeedActive) player.setPlaybackSpeed(playbackSpeed); holdSpeedActive = false; selected = null; locked = false; pinchZoom = 1f; activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED; activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
     BackHandler(enabled = !pipActive) { if (quickSettingsOpen) quickSettingsOpen = false else if (exitPrompt) exitPrompt = false else if (selected != null) { if (locked) locked = false else closePlayer() } else if (infoPage != null) infoPage = null else if (settingsOpen) settingsOpen = false else if (currentFolder != null) currentFolder = null else exitPrompt = true }
     if (streamDialog) AlertDialog(
