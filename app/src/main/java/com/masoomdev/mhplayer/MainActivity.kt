@@ -278,7 +278,23 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     var trackDialog by remember { mutableStateOf(false) }
     var subtitleDialog by remember { mutableStateOf(false) }
     var trackRevision by remember { mutableIntStateOf(0) }
-    var resizeChoice by remember { mutableIntStateOf(0) }
+    var resizeChoice by remember { mutableIntStateOf(prefs.getInt("ratio_mode", 0)) }
+    var ratioMenu by remember { mutableStateOf(false) }
+    var rememberRatio by remember { mutableStateOf(prefs.getBoolean("remember_ratio", false)) }
+    var overlayOpacity by remember { mutableFloatStateOf(prefs.getFloat("overlay_opacity", .90f)) }
+    var playerMoreMenu by remember { mutableStateOf(false) }
+    var playerActionsMenu by remember { mutableStateOf(false) }
+    var orientationLocked by remember { mutableStateOf(false) }
+    var muted by remember { mutableStateOf(false) }
+    var sleepSeconds by remember { mutableStateOf("300") }
+    var sleepMenu by remember { mutableStateOf(false) }
+    var sleepDeadline by remember { mutableLongStateOf(0L) }
+    var folderAction by remember { mutableStateOf<String?>(null) }
+    var folderRename by remember { mutableStateOf("") }
+    var folderRenameDialog by remember { mutableStateOf(false) }
+    var folderDeleteDialog by remember { mutableStateOf(false) }
+    var folderAliases by remember { mutableStateOf(emptyMap<String, String>()) }
+    var showFolderActions by remember { mutableStateOf(false) }
     var pinchZoom by remember { mutableFloatStateOf(1f) }
     var repeatOne by remember { mutableStateOf(false) }
     var seekSeconds by remember { mutableLongStateOf(prefs.getLong("seek_seconds", 10L)) }
@@ -410,6 +426,7 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
         val item = selected ?: return@LaunchedEffect
         if (lastRecoveryUri != item.uri.toString()) lastRecoveryUri = null
         pinchZoom = 1f
+        if (!rememberRatio) resizeChoice = 0
         holdSpeedActive = false
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         lastPlayedUri = item.uri.toString()
@@ -932,7 +949,7 @@ Full license texts and dependency notices should be made available on the develo
             Box(Modifier.fillMaxSize().background(if (audioMode) dark else Color.Black)) {
                 Box(Modifier.fillMaxSize()) {
                     if (!audioMode) {
-                        AndroidView(factory = { ctx -> (android.view.LayoutInflater.from(ctx).inflate(com.masoomdev.mhplayer.R.layout.mh_video_view, null) as PlayerView).apply { this.player = player; useController = false } }, modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = pinchZoom; scaleY = pinchZoom }, update = { it.resizeMode = resizeChoice })
+                        AndroidView(factory = { ctx -> (android.view.LayoutInflater.from(ctx).inflate(com.masoomdev.mhplayer.R.layout.mh_video_view, null) as PlayerView).apply { this.player = player; useController = false } }, modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = pinchZoom; scaleY = pinchZoom }, update = { it.resizeMode = if (resizeChoice in 0..4) resizeChoice else 3;  })
                     } else {
                         Column(
                             Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 85.dp),
@@ -1070,7 +1087,7 @@ Full license texts and dependency notices should be made available on the develo
                 }
                 if (!pipActive && (controlsVisible || locked || audioMode)) Column(
                     Modifier.align(Alignment.TopCenter).fillMaxWidth()
-                        .background(Color(0xC9000000)).padding(horizontal = 12.dp, vertical = 4.dp)
+                        .background(Color.Black.copy(alpha = overlayOpacity)).padding(horizontal = 12.dp, vertical = 4.dp)
                 ) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = { if (locked) locked = false else closePlayer() }) {
@@ -1128,12 +1145,77 @@ Full license texts and dependency notices should be made available on the develo
                         }) { Text(if (repeatOne) "Repeat on" else "Repeat off") }
                     }
                 }
+                if (!pipActive && !locked && (controlsVisible || audioMode)) {
+                    Row(Modifier.align(Alignment.TopStart).padding(top = 65.dp, start = 4.dp).background(Color.Black.copy(alpha = overlayOpacity)), verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { player.pause(); controlsInteraction++ }) { Icon(Icons.Default.Headphones, "Background play", tint = Color.White) }
+                        IconButton(onClick = { orientationLocked = !orientationLocked; activity.requestedOrientation = if (orientationLocked) (if (activity.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_PORTRAIT) else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED; controlsInteraction++ }) { Icon(Icons.Default.ScreenRotation, "Orientation lock", tint = Color.White) }
+                        IconButton(onClick = { equalizerOpen = true; controlsInteraction++ }) { Icon(Icons.Default.Equalizer, "Equalizer", tint = Color.White) }
+                        IconButton(onClick = { muted = !muted; player.volume = if (muted) 0f else 1f; controlsInteraction++ }) { Icon(if (muted) Icons.Default.VolumeOff else Icons.Default.VolumeUp, "Mute", tint = Color.White) }
+                        Box {
+                            IconButton(onClick = { playerActionsMenu = true }) { Icon(Icons.Default.ExpandMore, "All player actions", tint = Color.White) }
+                            DropdownMenu(expanded = playerActionsMenu, onDismissRequest = { playerActionsMenu = false }) {
+                                listOf("Equalizer", "Audio tracks", "Subtitles", "Settings", "Lock").forEach { action ->
+                                    DropdownMenuItem(text = { Text(action) }, leadingIcon = { Icon(Icons.Default.Tune, null) }, onClick = {
+                                        playerActionsMenu = false
+                                        when (action) { "Equalizer" -> equalizerOpen = true; "Audio tracks" -> trackDialog = true; "Subtitles" -> subtitleDialog = true; "Settings" -> quickSettingsOpen = true; "Lock" -> locked = true }
+                                    })
+                                }
+                            }
+                        }
+                    }
+                    Row(Modifier.align(Alignment.TopEnd).padding(top = 114.dp, end = 4.dp).background(Color.Black.copy(alpha = overlayOpacity)), verticalAlignment = Alignment.CenterVertically) {
+                        Box {
+                            IconButton(onClick = { sleepMenu = true }) { Icon(Icons.Default.Timer, "Sleep timer", tint = Color.White) }
+                            DropdownMenu(expanded = sleepMenu, onDismissRequest = { sleepMenu = false }) {
+                                DropdownMenuItem(text = { Text("Off") }, onClick = { sleepDeadline = 0L; sleepMenu = false })
+                                listOf(30,60,120,300,600,1800).forEach { sec -> DropdownMenuItem(text = { Text("$"+"{sec} seconds") }, onClick = { sleepDeadline = android.os.SystemClock.elapsedRealtime() + sec*1000L; sleepMenu = false }) }
+                            }
+                        }
+                        Box {
+                            IconButton(onClick = { speedMenu = true }) { Icon(Icons.Default.Speed, "Speed", tint = Color.White) }
+                            DropdownMenu(expanded = speedMenu, onDismissRequest = { speedMenu = false }) {
+                                listOf(.5f,.75f,1f,1.25f,1.5f,2f).forEach { rate -> DropdownMenuItem(text = { Text("$"+"{rate}x") }, onClick = { playbackSpeed = rate; player.setPlaybackSpeed(rate); speedMenu = false }) }
+                            }
+                        }
+                        Box {
+                            IconButton(onClick = { playerMoreMenu = true }) { Icon(Icons.Default.MoreVert, "All controls", tint = Color.White) }
+                            DropdownMenu(expanded = playerMoreMenu, onDismissRequest = { playerMoreMenu = false }) {
+                                listOf("Equalizer","Audio tracks","Subtitles","Playback settings","Aspect ratio","Sleep timer").forEach { action ->
+                                    DropdownMenuItem(text = { Text(action) }, leadingIcon = { Icon(Icons.Default.Settings, null) }, onClick = {
+                                        playerMoreMenu = false
+                                        when(action) { "Equalizer" -> equalizerOpen = true; "Audio tracks" -> trackDialog = true; "Subtitles" -> subtitleDialog = true; "Playback settings" -> quickSettingsOpen = true; "Aspect ratio" -> ratioMenu = true; "Sleep timer" -> sleepMenu = true }
+                                    })
+                                }
+                            }
+                        }
+                    }
+                }
                 if (!pipActive && !locked && (controlsVisible || audioMode)) Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                        .background(Color(0xC9000000)).padding(horizontal = 18.dp, vertical = 6.dp)
+                        .background(Color.Black.copy(alpha = overlayOpacity)).padding(horizontal = 18.dp, vertical = 6.dp)
                 ) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { locked = true }) { Icon(Icons.Default.Lock, "Lock screen", tint = Color.White) }
+                        Row {
+                            IconButton(onClick = { speedMenu = true }) { Icon(Icons.Default.Speed, "Playback speed", tint = Color.White) }
+                            Box {
+                                IconButton(onClick = { ratioMenu = true }) { Icon(Icons.Default.AspectRatio, "Screen ratio", tint = Color.White) }
+                                DropdownMenu(expanded = ratioMenu, onDismissRequest = { ratioMenu = false }) {
+                                    listOf("Fit","Fill","Original","Stretch","16:9","4:3","18:9","1.85:1","2.21:1").forEachIndexed { index, label ->
+                                        DropdownMenuItem(text = { Text(label) }, onClick = { resizeChoice = when(index) { 0 -> 0; 1 -> 2; 2 -> 4; else -> 3 }; prefs.edit().putInt("ratio_mode", resizeChoice).apply(); ratioMenu = false })
+                                    }
+                                    DropdownMenuItem(text = { Text(if (rememberRatio) "✓ Remember ratio" else "Remember ratio") }, onClick = { rememberRatio = !rememberRatio; prefs.edit().putBoolean("remember_ratio", rememberRatio).apply() })
+                                }
+                            }
+                        }
+                    }
                     if (activeLayout == "Cinema") Text("CINEMA", color = purple, fontSize = 11.sp)
                     if (!audioMode && activity.resources.configuration.orientation != Configuration.ORIENTATION_LANDSCAPE) Text("SWIPE TO SEEK  •  DOUBLE TAP TO SKIP", color = Color(0xFFB9B9C9), fontSize = 10.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Opacity, "Controls opacity", tint = Color.White, modifier = Modifier.size(18.dp))
+                        Slider(value = overlayOpacity, onValueChange = { overlayOpacity = it; prefs.edit().putFloat("overlay_opacity", it).apply() }, valueRange = .1f..1f, modifier = Modifier.weight(1f))
+                        Text("$"+"{(overlayOpacity*100).toInt()}%", color = Color.White, fontSize = 11.sp)
+                    }
                     Slider(
                         value = if (duration > 0) (progress.toFloat() / duration).coerceIn(0f, 1f) else 0f,
                         onValueChange = { if (duration > 0) player.seekTo((it * duration).toLong()); controlsInteraction++ }
@@ -1151,10 +1233,12 @@ Full license texts and dependency notices should be made available on the develo
                             player.seekTo((player.currentPosition - seekSeconds * 1000).coerceAtLeast(0))
                             controlsInteraction++
                         }) { Icon(Icons.Default.Replay10, "Seek backward", tint = foreground) }
+                        IconButton(onClick = { player.seekToPreviousMediaItem(); controlsInteraction++ }) { Icon(Icons.Default.SkipPrevious, "Previous file", tint = foreground) }
                         IconButton(onClick = { if (player.isPlaying) player.pause() else player.play(); controlsInteraction++ }) {
                             Surface(shape = androidx.compose.foundation.shape.CircleShape, color = Color(0xFF262039)) { Icon(if (playing) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
                                 "Play or pause", Modifier.padding(5.dp).size(54.dp), tint = Color(0xFFB99AFF)) }
                         }
+                        IconButton(onClick = { player.seekToNextMediaItem(); controlsInteraction++ }) { Icon(Icons.Default.SkipNext, "Next file", tint = foreground) }
                         IconButton(onClick = { player.seekTo(player.currentPosition + seekSeconds * 1000); controlsInteraction++ }) {
                             Icon(Icons.Default.Forward10, "Seek forward", tint = foreground)
                         }
@@ -1227,7 +1311,7 @@ Full license texts and dependency notices should be made available on the develo
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     FilterChip(selected = showVideo, onClick = { showVideo = true; currentFolder = null }, label = { Text("Videos") })
                     Spacer(Modifier.width(12.dp))
-                    FilterChip(selected = !showVideo, onClick = { showVideo = false; currentFolder = null }, label = { Text("Audio") })
+                    FilterChip(selected = !showVideo, onClick = { showVideo = false; currentFolder = null }, label = { Text("Music") })
                     Spacer(Modifier.width(8.dp))
                     FilterChip(selected = playlistOnly, onClick = { playlistOnly = !playlistOnly; currentFolder = null }, label = { Text("Playlist") })
                 }
@@ -1351,7 +1435,23 @@ Full license texts and dependency notices should be made available on the develo
                                         Text("Last played", color = purple, fontSize = 12.sp)
                                     }
                                 }
-                                Icon(Icons.Default.ChevronRight, null, tint = secondaryText)
+                                Box {
+                                    IconButton(onClick = { folderAction = folder.key; showFolderActions = true }) { Icon(Icons.Default.MoreVert, "Folder actions", tint = purple) }
+                                    DropdownMenu(expanded = showFolderActions && folderAction == folder.key, onDismissRequest = { showFolderActions = false }) {
+                                        listOf("Background play","Add to playlist","Rename","Delete","Share").forEach { action ->
+                                            DropdownMenuItem(text = { Text(action) }, leadingIcon = { Icon(Icons.Default.Folder, null) }, onClick = {
+                                                showFolderActions = false
+                                                when(action) {
+                                                    "Background play" -> { val first = folder.value.firstOrNull(); if (first != null) selected = first }
+                                                    "Add to playlist" -> { playlistUris = playlistUris + folder.value.map { it.uri.toString() }; prefs.edit().putStringSet("my_playlist", playlistUris.toSet()).apply() }
+                                                    "Rename" -> { folderRename = folder.key.substringAfterLast('/'); folderRenameDialog = true }
+                                                    "Delete" -> folderDeleteDialog = true
+                                                    "Share" -> { val first = folder.value.firstOrNull(); if (first != null) { val intent = Intent(Intent.ACTION_SEND).setType(if (first.video) "video/*" else "audio/*").putExtra(Intent.EXTRA_STREAM, first.uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION); activity.startActivity(Intent.createChooser(intent, "Share media")) } }
+                                                }
+                                            })
+                                        }
+                                    }
+                                }
                             }
                             HorizontalDivider(color = Color(0xFF30364C))
                         }
