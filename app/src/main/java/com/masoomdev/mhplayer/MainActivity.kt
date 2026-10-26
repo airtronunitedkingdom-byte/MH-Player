@@ -12,6 +12,12 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import android.util.Size
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.enterTransition
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -283,6 +289,7 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     var rememberRatio by remember { mutableStateOf(prefs.getBoolean("remember_ratio", false)) }
     var overlayOpacity by remember { mutableFloatStateOf(prefs.getFloat("overlay_opacity", 1f)) }
     var playerMoreMenu by remember { mutableStateOf(false) }
+    var expandedControls by remember { mutableStateOf(false) }
     var playerActionsMenu by remember { mutableStateOf(false) }
     var orientationLocked by remember { mutableStateOf(false) }
     var muted by remember { mutableStateOf(false) }
@@ -1139,15 +1146,8 @@ Full license texts and dependency notices should be made available on the develo
                         IconButton(onClick = { equalizerOpen = true; controlsInteraction++ }) { Icon(Icons.Default.Equalizer, "Equalizer", tint = Color.White) }
                         IconButton(onClick = { muted = !muted; player.volume = if (muted) 0f else 1f; controlsInteraction++ }) { Icon(if (muted) Icons.Default.VolumeOff else Icons.Default.VolumeUp, "Mute", tint = Color.White) }
                         Box {
-                            IconButton(onClick = { playerActionsMenu = true }) { Icon(Icons.Default.ExpandMore, "All player actions", tint = Color.White) }
-                            DropdownMenu(expanded = playerActionsMenu, onDismissRequest = { playerActionsMenu = false }) {
-                                listOf("Equalizer", "Audio tracks", "Subtitles", "Settings", "Lock").forEach { action ->
-                                    DropdownMenuItem(text = { Text(action) }, leadingIcon = { Icon(Icons.Default.Tune, null) }, onClick = {
-                                        playerActionsMenu = false
-                                        when (action) { "Equalizer" -> equalizerOpen = true; "Audio tracks" -> trackDialog = true; "Subtitles" -> subtitleDialog = true; "Settings" -> quickSettingsOpen = true; "Lock" -> locked = true }
-                                    })
-                                }
-                            }
+                            IconButton(onClick = { expandedControls = !expandedControls }) { Icon(Icons.Default.ExpandMore, "All player actions", tint = Color.White) }
+
                         }
                     }
                     Row(Modifier.align(Alignment.TopEnd).padding(top = 54.dp, end = 4.dp).background(Color.Transparent), verticalAlignment = Alignment.CenterVertically) {
@@ -1165,15 +1165,8 @@ Full license texts and dependency notices should be made available on the develo
                             }
                         }
                         Box {
-                            IconButton(onClick = { playerMoreMenu = true }) { Icon(Icons.Default.MoreVert, "All controls", tint = Color.White) }
-                            DropdownMenu(expanded = playerMoreMenu, onDismissRequest = { playerMoreMenu = false }) {
-                                listOf("Equalizer","Audio tracks","Subtitles","Playback settings","Aspect ratio","Sleep timer").forEach { action ->
-                                    DropdownMenuItem(text = { Text(action) }, leadingIcon = { Icon(Icons.Default.Settings, null) }, onClick = {
-                                        playerMoreMenu = false
-                                        when(action) { "Equalizer" -> equalizerOpen = true; "Audio tracks" -> trackDialog = true; "Subtitles" -> subtitleDialog = true; "Playback settings" -> quickSettingsOpen = true; "Aspect ratio" -> ratioMenu = true; "Sleep timer" -> sleepMenu = true }
-                                    })
-                                }
-                            }
+                            IconButton(onClick = { expandedControls = !expandedControls }) { Icon(Icons.Default.MoreVert, "All controls", tint = Color.White) }
+
                         }
                     }
                 }
