@@ -1100,7 +1100,7 @@ Full license texts and dependency notices should be made available on the develo
                 }
                 if (!pipActive && (controlsVisible || locked || audioMode)) Column(
                     Modifier.align(Alignment.TopCenter).fillMaxWidth()
-                        .background(Color.Black.copy(alpha = overlayOpacity)).padding(horizontal = 12.dp, vertical = 4.dp)
+                        .background(Color.Black.copy(alpha = 0.12f)).padding(horizontal = 4.dp, vertical = 1.dp)
                 ) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = { if (locked) locked = false else closePlayer() }) {
@@ -1205,7 +1205,7 @@ Full license texts and dependency notices should be made available on the develo
                 }
                 if (!pipActive && !locked && (controlsVisible || audioMode)) Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                        .background(Color.Black.copy(alpha = overlayOpacity)).padding(horizontal = 18.dp, vertical = 6.dp)
+                        .background(Color.Black.copy(alpha = 0.12f)).padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = { locked = true }) { Icon(Icons.Default.Lock, "Lock screen", tint = Color.White) }
