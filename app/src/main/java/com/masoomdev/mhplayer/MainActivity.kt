@@ -1100,7 +1100,7 @@ Full license texts and dependency notices should be made available on the develo
                 }
                 if (!pipActive && (controlsVisible || locked || audioMode)) Column(
                     Modifier.align(Alignment.TopCenter).fillMaxWidth()
-                        .background(Color.Black.copy(alpha = 0.12f)).padding(horizontal = 4.dp, vertical = 1.dp)
+                        .background(Color.Transparent).padding(horizontal = 4.dp, vertical = 1.dp)
                 ) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = { if (locked) locked = false else closePlayer() }) {
@@ -1159,7 +1159,7 @@ Full license texts and dependency notices should be made available on the develo
                     }
                 }
                 if (!pipActive && !locked && (controlsVisible || audioMode)) {
-                    Row(Modifier.align(Alignment.TopStart).padding(top = 65.dp, start = 4.dp).background(Color.Black.copy(alpha = overlayOpacity)), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.align(Alignment.TopStart).padding(top = 65.dp, start = 4.dp).background(Color.Transparent), verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = { player.pause(); controlsInteraction++ }) { Icon(Icons.Default.Headphones, "Background play", tint = Color.White) }
                         IconButton(onClick = { orientationLocked = !orientationLocked; activity.requestedOrientation = if (orientationLocked) (if (activity.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_PORTRAIT) else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED; controlsInteraction++ }) { Icon(Icons.Default.ScreenRotation, "Orientation lock", tint = Color.White) }
                         IconButton(onClick = { equalizerOpen = true; controlsInteraction++ }) { Icon(Icons.Default.Equalizer, "Equalizer", tint = Color.White) }
@@ -1176,7 +1176,7 @@ Full license texts and dependency notices should be made available on the develo
                             }
                         }
                     }
-                    Row(Modifier.align(Alignment.TopEnd).padding(top = 114.dp, end = 4.dp).background(Color.Black.copy(alpha = overlayOpacity)), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.align(Alignment.TopEnd).padding(top = 114.dp, end = 4.dp).background(Color.Transparent), verticalAlignment = Alignment.CenterVertically) {
                         Box {
                             IconButton(onClick = { sleepMenu = true }) { Icon(Icons.Default.Timer, "Sleep timer", tint = Color.White) }
                             DropdownMenu(expanded = sleepMenu, onDismissRequest = { sleepMenu = false }) {
@@ -1205,7 +1205,7 @@ Full license texts and dependency notices should be made available on the develo
                 }
                 if (!pipActive && !locked && (controlsVisible || audioMode)) Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                        .background(Color.Black.copy(alpha = 0.12f)).padding(horizontal = 6.dp, vertical = 2.dp)
+                        .background(Color.Transparent).padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = { locked = true }) { Icon(Icons.Default.Lock, "Lock screen", tint = Color.White) }
