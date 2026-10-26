@@ -13,7 +13,6 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import android.util.Size
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.enterTransition
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.fadeIn
@@ -1167,6 +1166,83 @@ Full license texts and dependency notices should be made available on the develo
                         Box {
                             IconButton(onClick = { expandedControls = !expandedControls }) { Icon(Icons.Default.MoreVert, "All controls", tint = Color.White) }
 
+                        }
+                    }
+                }
+                if (!pipActive && !locked) {
+                    AnimatedVisibility(
+                        visible = expandedControls,
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                        enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+                        exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
+                    ) {
+                        Column(
+                            Modifier.widthIn(max = 320.dp)
+                                .background(Color.Black.copy(alpha = 0.30f))
+                                .verticalScroll(rememberScrollState())
+                                .padding(8.dp)
+                        ) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text("PLAYER CONTROLS", color = Color.White, fontSize = 12.sp)
+                                IconButton(onClick = { expandedControls = false }, modifier = Modifier.size(32.dp)) {
+                                    Icon(Icons.Default.Close, "Close controls", tint = Color.White)
+                                }
+                            }
+                            val actions = listOf(
+                                Triple("Background", Icons.Default.Headphones, 0),
+                                Triple("Rotate", Icons.Default.ScreenRotation, 1),
+                                Triple("Equalizer", Icons.Default.Equalizer, 2),
+                                Triple("Mute", Icons.Default.VolumeOff, 3),
+                                Triple("Timer", Icons.Default.Timer, 4),
+                                Triple("PiP", Icons.Default.PictureInPictureAlt, 5),
+                                Triple("Speed", Icons.Default.Speed, 6),
+                                Triple("Ratio", Icons.Default.AspectRatio, 7),
+                                Triple("Audio", Icons.Default.Audiotrack, 8),
+                                Triple("Subtitles", Icons.Default.Subtitles, 9),
+                                Triple("Add subtitle", Icons.Default.ClosedCaption, 10),
+                                Triple("Repeat", Icons.Default.Repeat, 11),
+                                Triple("Settings", Icons.Default.Settings, 12),
+                                Triple("Lock", Icons.Default.Lock, 13),
+                                Triple("Previous", Icons.Default.SkipPrevious, 14),
+                                Triple("Next", Icons.Default.SkipNext, 15)
+                            )
+                            actions.chunked(4).forEach { group ->
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                                    group.forEach { (label, actionIcon, id) ->
+                                        Column(
+                                            Modifier.width(72.dp).clickable {
+                                                expandedControls = false
+                                                when (id) {
+                                                    0 -> { player.pause(); backgroundPlay = true }
+                                                    1 -> { orientationLocked = !orientationLocked; activity.requestedOrientation = if (orientationLocked) ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
+                                                    2 -> equalizerOpen = true
+                                                    3 -> { muted = !muted; player.volume = if (muted) 0f else 1f }
+                                                    4 -> sleepMenu = true
+                                                    5 -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                                        try { activity.enterPictureInPictureMode(PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build()) } catch (_: Exception) {}
+                                                    }
+                                                    6 -> speedMenu = true
+                                                    7 -> ratioMenu = true
+                                                    8 -> trackDialog = true
+                                                    9 -> subtitleDialog = true
+                                                    10 -> subtitlePicker.launch(arrayOf("*/*"))
+                                                    11 -> { repeatOne = !repeatOne; player.repeatMode = if (repeatOne) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF }
+                                                    12 -> quickSettingsOpen = true
+                                                    13 -> locked = true
+                                                    14 -> player.seekToPreviousMediaItem()
+                                                    15 -> player.seekToNextMediaItem()
+                                                }
+                                                controlsInteraction++
+                                            }.padding(vertical = 7.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Icon(actionIcon, label, modifier = Modifier.size(21.dp), tint = Color.White)
+                                            Spacer(Modifier.height(4.dp))
+                                            Text(label, color = Color.White, fontSize = 10.sp, maxLines = 1)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
