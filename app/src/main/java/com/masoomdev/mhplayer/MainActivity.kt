@@ -225,6 +225,7 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
     }
     var currentFolder by rememberSaveable { mutableStateOf<String?>(null) }
     var searchText by rememberSaveable { mutableStateOf("") }
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
     var sortMode by remember { mutableStateOf(prefs.getString("sort_mode", "Name") ?: "Name") }
     var sortDescending by remember { mutableStateOf(prefs.getBoolean("sort_desc", false)) }
     var libraryView by remember { mutableStateOf(prefs.getString("library_view", "Folders") ?: "Folders") }
@@ -1177,7 +1178,7 @@ Full license texts and dependency notices should be made available on the develo
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("MH Player", fontSize = 30.sp, color = foreground, modifier = Modifier.weight(1f))
                     var mainMenuExpanded by remember { mutableStateOf(false) }
-                    IconButton(onClick = { searchText = ""; libraryOptions = true }) { Icon(Icons.Default.Search, "Search and filter", tint = purple) }
+                    IconButton(onClick = { searchExpanded = !searchExpanded; if (!searchExpanded) searchText = "" }) { Icon(if (searchExpanded) Icons.Default.Close else Icons.Default.Search, "Search files", tint = purple) }
                     Box {
                         IconButton(onClick = { mainMenuExpanded = true }) { Icon(Icons.Default.MoreVert, "More options", tint = purple) }
                         DropdownMenu(expanded = mainMenuExpanded, onDismissRequest = { mainMenuExpanded = false }) {
@@ -1190,9 +1191,26 @@ Full license texts and dependency notices should be made available on the develo
                     }
                 }
                 Text("Offline video & audio", color = secondaryText)
+                if (searchExpanded) {
+                    OutlinedTextField(value = searchText, onValueChange = { searchText = it }, label = { Text("Search files and folders") }, leadingIcon = { Icon(Icons.Default.Search, null) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                }
                 val recentItems = remember(media, recentUris) { recentUris.mapNotNull { uri -> media.firstOrNull { it.uri.toString() == uri } } }
-                if (recentItems.isNotEmpty()) {
+                run {
                     Spacer(Modifier.height(12.dp))
+                    if (recentItems.isEmpty()) {
+                        val previous = media.firstOrNull { it.uri.toString() == lastPlayedUri }
+                        if (previous != null) {
+                            Text("Last played", color = foreground, fontSize = 18.sp)
+                            Row(Modifier.fillMaxWidth().clickable { selected = previous }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                MediaThumbnail(previous, Modifier.size(width = 112.dp, height = 64.dp))
+                                Spacer(Modifier.width(10.dp))
+                                Text(previous.title, color = foreground, maxLines = 2)
+                            }
+                        } else {
+                            Text("Last played", color = foreground, fontSize = 18.sp)
+                            Text("Play a video or song to see it here", color = secondaryText, fontSize = 12.sp)
+                        }
+                    } else {
                     Text("Last played", color = foreground, fontSize = 18.sp)
                     Spacer(Modifier.height(6.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1202,6 +1220,7 @@ Full license texts and dependency notices should be made available on the develo
                                 Text(item.title, color = foreground, maxLines = 1, fontSize = 12.sp)
                             }
                         }
+                    }
                     }
                 }
                 Spacer(Modifier.height(20.dp))
