@@ -354,12 +354,16 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
         }
     }
     var lastRecoveryUri by remember { mutableStateOf<String?>(null) }
+    val latestMedia by rememberUpdatedState(media)
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) { trackRevision++ }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 val uri = mediaItem?.localConfiguration?.uri ?: return
-                if (selected?.uri != uri) selected = media.firstOrNull { it.uri == uri } ?: selected
+                if (selected?.uri != uri) selected = latestMedia.firstOrNull { it.uri == uri }
+                    ?: player.currentMediaItem?.let { current ->
+                        LocalMedia(current.mediaMetadata.title?.toString() ?: uri.lastPathSegment ?: "Media", uri, selected?.video ?: true, 0L, selected?.folder ?: "Opened files", 0L, 0L)
+                    }
             }
             override fun onPlaybackStateChanged(playbackState: Int) {
                 trackRevision++
@@ -474,7 +478,10 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
         if (!alreadyPlaying) {
             val queue = if (playlistOnly) media.filter { it.uri.toString() in playlistUris && it.video == showVideo }
                 .let { if (it.any { entry -> entry.uri == item.uri }) it else listOf(item) }
-                else listOf(item)
+                else media.filter { it.folder == item.folder && it.video == item.video }
+                    .let { folderItems ->
+                        if (folderItems.any { entry -> entry.uri == item.uri }) folderItems else listOf(item)
+                    }
             val items = queue.map { entry ->
                 MediaItem.Builder().setUri(entry.uri)
                     .setMediaMetadata(androidx.media3.common.MediaMetadata.Builder().setTitle(entry.title).build())
@@ -1183,9 +1190,10 @@ Full license texts and dependency notices should be made available on the develo
                 if (!pipActive && !locked) {
                     AnimatedVisibility(
                         visible = expandedControls,
-                        modifier = Modifier.align(Alignment.CenterEnd),
-                        enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
-                        exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
+                        modifier = Modifier.align(Alignment.CenterStart)
+                            .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal)),
+                        enter = slideInHorizontally(initialOffsetX = { -it }) + fadeIn(),
+                        exit = slideOutHorizontally(targetOffsetX = { -it }) + fadeOut()
                     ) {
                         Column(
                             Modifier.widthIn(max = 320.dp)
@@ -1257,7 +1265,7 @@ Full license texts and dependency notices should be made available on the develo
                         }
                     }
                 }
-                if (!pipActive && !locked && (controlsVisible || audioMode)) Column(
+                if (!pipActive && !locked && !expandedControls && (controlsVisible || audioMode)) Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                         .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
                         .background(Color.Transparent).padding(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 10.dp)
