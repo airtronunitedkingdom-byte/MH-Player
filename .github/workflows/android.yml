@@ -24,6 +24,7 @@ jobs:
         run: |
           TAG="build-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           gh release create "$TAG" app/build/outputs/apk/debug/app-debug.apk --title "MH Player APK - $TAG" --notes "Automated debug APK build. Not a signed Play Store release." --prerelease --target "$GITHUB_SHA"
+  # Signed Play Console bundle, triggered by [build-aab] commit or manual dispatch.
   release-aab:
     if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build-aab]') }}
     runs-on: ubuntu-latest
