@@ -85,7 +85,7 @@ class PlaybackService : MediaSessionService() {
                 if (player.isPlaying) "Pause" else "Play", actionIntent("mh.TOGGLE", 2))
             .addAction(android.R.drawable.ic_media_next, "Next", actionIntent("mh.NEXT", 3))
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", actionIntent("mh.STOP", 4))
-            .setStyle(androidx.core.app.NotificationCompat.MediaStyle()
+            .setStyle(androidx.media3.session.MediaStyleNotificationHelper.MediaStyle(session!!)
                 .setShowActionsInCompactView(0, 1, 2))
             .build()
         startForeground(notificationId, notification)
