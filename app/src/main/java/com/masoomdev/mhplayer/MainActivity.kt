@@ -17,6 +17,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -986,11 +987,22 @@ Full license texts and dependency notices should be made available on the develo
             val audioMode = selected?.video == false
             val activeLayout = if (audioMode) audioLayout else videoLayout
             val overlayText = Color.White
-            Box(Modifier.fillMaxSize().background(if (audioMode) dark else Color.Black)) {
+            // Keep the audio playback surface dark so white transport controls remain visible
+            // even when the app's library theme is light.
+            Box(Modifier.fillMaxSize().background(if (audioMode) Color(0xFF090D16) else Color.Black)) {
                 Box(Modifier.fillMaxSize()) {
                     if (!audioMode) {
                         AndroidView(factory = { ctx -> (android.view.LayoutInflater.from(ctx).inflate(com.masoomdev.mhplayer.R.layout.mh_video_view, null) as PlayerView).apply { this.player = player; useController = false } }, modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = pinchZoom; scaleY = pinchZoom }, update = { it.resizeMode = if (resizeChoice in 0..4) resizeChoice else 3;  })
                     } else {
+                        // Default animated music artwork for audio without embedded cover art.
+                        // Animation pauses with playback; video rendering remains untouched.
+                        val audioArtworkTransition = rememberInfiniteTransition(label = "audioArtwork")
+                        val audioArtworkPulse by audioArtworkTransition.animateFloat(
+                            initialValue = 0.94f, targetValue = 1.06f,
+                            animationSpec = infiniteRepeatable(animation = tween(1300, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse),
+                            label = "artworkPulse"
+                        )
+                        val artworkScale = if (playing) audioArtworkPulse else 1f
                         Column(
                             Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 85.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -1002,25 +1014,25 @@ Full license texts and dependency notices should be made available on the develo
                                 Row(Modifier.fillMaxWidth().height(100.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                                     val bars = listOf(20, 48, 32, 78, 56, 94, 45, 68, 35, 82, 52, 25, 60, 40, 72)
                                     bars.forEach { height ->
-                                        Box(Modifier.width(6.dp).height(height.dp).background(purple, androidx.compose.foundation.shape.RoundedCornerShape(5.dp)))
+                                        Box(Modifier.width(6.dp).height((height * artworkScale).dp).background(Color(0xFF8EA3FF), androidx.compose.foundation.shape.RoundedCornerShape(5.dp)))
                                     }
                                 }
                             } else {
                                 Surface(
-                                    modifier = Modifier.size(if (activeLayout == "Modern") 200.dp else 140.dp),
-                                    color = if (activeLayout == "Modern") purple.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surface,
+                                    modifier = Modifier.size(if (activeLayout == "Modern") 200.dp else 140.dp).graphicsLayer { scaleX = artworkScale; scaleY = artworkScale },
+                                    color = Color(0xFF172238),
                                     shape = androidx.compose.foundation.shape.RoundedCornerShape(if (activeLayout == "Modern") 32.dp else 18.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(if (activeLayout == "Modern") Icons.Default.Album else Icons.Default.MusicNote,
-                                            null, Modifier.size(90.dp), tint = purple)
+                                            null, Modifier.size(90.dp), tint = Color(0xFF8EA3FF))
                                     }
                                 }
                             }
                             Spacer(Modifier.height(22.dp))
-                            Text(selected?.title ?: "Audio", color = foreground, fontSize = if (activeLayout == "Modern") 24.sp else 20.sp, maxLines = 2)
+                            Text(selected?.title ?: "Audio", color = Color.White, fontSize = if (activeLayout == "Modern") 24.sp else 20.sp, maxLines = 2)
                             Text(if (activeLayout == "Studio") "Audio playback • Equalizer available in Settings" else "MH Player • Offline audio",
-                                color = secondaryText, fontSize = 12.sp)
+                                color = Color(0xFFB9C4D8), fontSize = 12.sp)
                         }
                     }
                     if (!pipActive) Box(Modifier.fillMaxSize()
