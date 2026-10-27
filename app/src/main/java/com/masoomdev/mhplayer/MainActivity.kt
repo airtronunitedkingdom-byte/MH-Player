@@ -1144,7 +1144,7 @@ Full license texts and dependency notices should be made available on the develo
                         }
                     }
                 }
-                if (!pipActive && (controlsVisible || locked || audioMode)) Column(
+                if (!pipActive && !expandedControls && (controlsVisible || locked || audioMode)) Column(
                     Modifier.align(Alignment.TopCenter).fillMaxWidth()
                         .background(Color.Transparent).padding(horizontal = 4.dp, vertical = 1.dp)
                 ) {
@@ -1156,7 +1156,7 @@ Full license texts and dependency notices should be made available on the develo
 
                     }
                 }
-                if (!pipActive && !locked && (controlsVisible || audioMode)) {
+                if (!pipActive && !locked && !expandedControls && (controlsVisible || audioMode)) {
                     Row(Modifier.align(Alignment.TopStart).padding(top = 54.dp, start = 4.dp).background(Color.Transparent), verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = { backgroundPlay = !backgroundPlay; prefs.edit().putBoolean("background_play", backgroundPlay).apply(); controlsInteraction++ }) { Icon(Icons.Default.Headphones, if (backgroundPlay) "Background playback on" else "Background playback off", tint = if (backgroundPlay) Color.White else Color.White.copy(alpha = 0.65f)) }
                         IconButton(onClick = { orientationLocked = !orientationLocked; activity.requestedOrientation = if (orientationLocked) (if (activity.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_PORTRAIT) else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED; controlsInteraction++ }) { Icon(Icons.Default.ScreenRotation, "Orientation lock", tint = Color.White) }
@@ -1318,7 +1318,7 @@ Full license texts and dependency notices should be made available on the develo
                             controlsInteraction++
                         }) { Text("${seekSeconds}s") }
                     }
-                } else if (!pipActive && locked) Box(
+                } else if (!pipActive && locked && !expandedControls) Box(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)).padding(14.dp),
                     contentAlignment = Alignment.Center
                 ) {
