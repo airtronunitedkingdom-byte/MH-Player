@@ -1268,14 +1268,14 @@ Full license texts and dependency notices should be made available on the develo
                 if (!pipActive && !locked && !expandedControls && (controlsVisible || audioMode)) Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                         .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
-                        .background(Color.Transparent).padding(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 10.dp)
+                        .background(Color.Transparent).padding(start = 6.dp, end = 6.dp, top = 0.dp, bottom = 4.dp)
                 ) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { locked = true }) { Icon(Icons.Default.Lock, "Lock screen", tint = Color.White) }
+                        IconButton(modifier = Modifier.size(32.dp), onClick = { locked = true }) { Icon(Icons.Default.Lock, "Lock screen", tint = Color.White) }
                         Row {
-                            IconButton(onClick = { speedMenu = true }) { Icon(Icons.Default.Speed, "Playback speed", tint = Color.White) }
+                            IconButton(modifier = Modifier.size(32.dp), onClick = { speedMenu = true }) { Icon(Icons.Default.Speed, "Playback speed", tint = Color.White) }
                             Box {
-                                IconButton(onClick = { ratioMenu = true }) { Icon(Icons.Default.AspectRatio, "Screen ratio", tint = Color.White) }
+                                IconButton(modifier = Modifier.size(32.dp), onClick = { ratioMenu = true }) { Icon(Icons.Default.AspectRatio, "Screen ratio", tint = Color.White) }
                                 DropdownMenu(expanded = ratioMenu, onDismissRequest = { ratioMenu = false }) {
                                     listOf("Fit","Fill","Original","Stretch","16:9","4:3","18:9","1.85:1","2.21:1").forEachIndexed { index, label ->
                                         DropdownMenuItem(text = { Text(label) }, onClick = { resizeChoice = when(index) { 0 -> 0; 1 -> 2; 2 -> 4; else -> 3 }; prefs.edit().putInt("ratio_mode", resizeChoice).apply(); ratioMenu = false })
@@ -1285,38 +1285,39 @@ Full license texts and dependency notices should be made available on the develo
                             }
                         }
                     }
-                    if (activeLayout == "Cinema") Text("CINEMA", color = purple, fontSize = 11.sp)
-                    if (!audioMode && activity.resources.configuration.orientation != Configuration.ORIENTATION_LANDSCAPE) Text("SWIPE TO SEEK  •  DOUBLE TAP TO SKIP", color = Color(0xFFB9B9C9), fontSize = 10.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+                    if (activeLayout == "Cinema") Text("CINEMA", color = purple, fontSize = 9.sp)
+                    if (!audioMode && activity.resources.configuration.orientation != Configuration.ORIENTATION_LANDSCAPE) Text("SWIPE TO SEEK  •  DOUBLE TAP TO SKIP", color = Color(0xFFB9B9C9), fontSize = 9.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
                     Slider(
+                        modifier = Modifier.height(28.dp),
                         value = if (duration > 0) (progress.toFloat() / duration).coerceIn(0f, 1f) else 0f,
                         onValueChange = { if (duration > 0) player.seekTo((it * duration).toLong()); controlsInteraction++ }
                     )
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("${progress / 60000}:${"%02d".format(progress / 1000 % 60)}", color = foreground)
-                        Text(if (duration > 0) "-${(duration - progress).coerceAtLeast(0) / 60000}:${"%02d".format((duration - progress).coerceAtLeast(0) / 1000 % 60)}" else "0:00", color = Color(0xFFB9B9C9))
+                        Text("${progress / 60000}:${"%02d".format(progress / 1000 % 60)}", color = foreground, fontSize = 11.sp)
+                        Text(if (duration > 0) "-${(duration - progress).coerceAtLeast(0) / 60000}:${"%02d".format((duration - progress).coerceAtLeast(0) / 1000 % 60)}" else "0:00", color = Color(0xFFB9B9C9), fontSize = 11.sp)
                     }
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = if (activeLayout == "Modern") Arrangement.SpaceAround else Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = {
+                        IconButton(modifier = Modifier.size(32.dp), onClick = {
                             player.seekTo((player.currentPosition - seekSeconds * 1000).coerceAtLeast(0))
                             controlsInteraction++
                         }) { Icon(Icons.Default.Replay10, "Seek backward", tint = Color.White) }
-                        IconButton(onClick = { player.seekToPreviousMediaItem(); controlsInteraction++ }) { Icon(Icons.Default.SkipPrevious, "Previous file", tint = Color.White) }
-                        IconButton(onClick = { if (player.isPlaying) player.pause() else player.play(); controlsInteraction++ }) {
+                        IconButton(modifier = Modifier.size(32.dp), onClick = { player.seekToPreviousMediaItem(); controlsInteraction++ }) { Icon(Icons.Default.SkipPrevious, "Previous file", tint = Color.White) }
+                        IconButton(modifier = Modifier.size(32.dp), onClick = { if (player.isPlaying) player.pause() else player.play(); controlsInteraction++ }) {
                             Icon(if (playing) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
-                                "Play or pause", Modifier.size(54.dp), tint = Color.White)
+                                "Play or pause", Modifier.size(34.dp), tint = Color.White)
                         }
-                        IconButton(onClick = { player.seekToNextMediaItem(); controlsInteraction++ }) { Icon(Icons.Default.SkipNext, "Next file", tint = Color.White) }
-                        IconButton(onClick = { player.seekTo(player.currentPosition + seekSeconds * 1000); controlsInteraction++ }) {
+                        IconButton(modifier = Modifier.size(32.dp), onClick = { player.seekToNextMediaItem(); controlsInteraction++ }) { Icon(Icons.Default.SkipNext, "Next file", tint = Color.White) }
+                        IconButton(modifier = Modifier.size(32.dp), onClick = { player.seekTo(player.currentPosition + seekSeconds * 1000); controlsInteraction++ }) {
                             Icon(Icons.Default.Forward10, "Seek forward", tint = Color.White)
                         }
                         if (activeLayout != "Cinema") TextButton(onClick = {
                             seekSeconds = if (seekSeconds == 10L) 30L else 10L
                             controlsInteraction++
-                        }) { Text("${seekSeconds}s") }
+                        }) { Text("${seekSeconds}s", fontSize = 11.sp) }
                     }
                 } else if (!pipActive && locked && !expandedControls) Box(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)).padding(14.dp),
