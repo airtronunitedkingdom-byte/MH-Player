@@ -1153,13 +1153,13 @@ Full license texts and dependency notices should be made available on the develo
                             IconButton(onClick = { sleepMenu = true }) { Icon(Icons.Default.Timer, "Sleep timer", tint = Color.White) }
                             DropdownMenu(expanded = sleepMenu, onDismissRequest = { sleepMenu = false }) {
                                 DropdownMenuItem(text = { Text("Off") }, onClick = { sleepDeadline = 0L; sleepMenu = false })
-                                listOf(30,60,120,300,600,1800).forEach { sec -> DropdownMenuItem(text = { Text("$"+"{sec} seconds") }, onClick = { sleepDeadline = android.os.SystemClock.elapsedRealtime() + sec*1000L; sleepMenu = false }) }
+                                listOf(30,60,120,300,600,1800).forEach { sec -> DropdownMenuItem(text = { Text("${sec} seconds") }, onClick = { sleepDeadline = android.os.SystemClock.elapsedRealtime() + sec*1000L; sleepMenu = false }) }
                             }
                         }
                         Box {
                             IconButton(onClick = { speedMenu = true }) { Icon(Icons.Default.Speed, "Speed", tint = Color.White) }
                             DropdownMenu(expanded = speedMenu, onDismissRequest = { speedMenu = false }) {
-                                listOf(.5f,.75f,1f,1.25f,1.5f,2f).forEach { rate -> DropdownMenuItem(text = { Text("$"+"{rate}x") }, onClick = { playbackSpeed = rate; player.setPlaybackSpeed(rate); speedMenu = false }) }
+                                listOf(.5f,.75f,1f,1.25f,1.5f,2f).forEach { rate -> DropdownMenuItem(text = { Text("${rate}x") }, onClick = { playbackSpeed = rate; player.setPlaybackSpeed(rate); speedMenu = false }) }
                             }
                         }
                         Box {
