@@ -1139,7 +1139,7 @@ Full license texts and dependency notices should be made available on the develo
                 }
                 if (!pipActive && !locked && (controlsVisible || audioMode)) {
                     Row(Modifier.align(Alignment.TopStart).padding(top = 54.dp, start = 4.dp).background(Color.Transparent), verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { player.pause(); controlsInteraction++ }) { Icon(Icons.Default.Headphones, "Background play", tint = Color.White) }
+                        IconButton(onClick = { backgroundPlay = !backgroundPlay; prefs.edit().putBoolean("background_play", backgroundPlay).apply(); controlsInteraction++ }) { Icon(Icons.Default.Headphones, if (backgroundPlay) "Background playback on" else "Background playback off", tint = if (backgroundPlay) Color.White else Color.White.copy(alpha = 0.65f)) }
                         IconButton(onClick = { orientationLocked = !orientationLocked; activity.requestedOrientation = if (orientationLocked) (if (activity.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_PORTRAIT) else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED; controlsInteraction++ }) { Icon(Icons.Default.ScreenRotation, "Orientation lock", tint = Color.White) }
                         IconButton(onClick = { equalizerOpen = true; controlsInteraction++ }) { Icon(Icons.Default.Equalizer, "Equalizer", tint = Color.White) }
                         IconButton(onClick = { muted = !muted; player.volume = if (muted) 0f else 1f; controlsInteraction++ }) { Icon(if (muted) Icons.Default.VolumeOff else Icons.Default.VolumeUp, "Mute", tint = Color.White) }
@@ -1282,15 +1282,15 @@ Full license texts and dependency notices should be made available on the develo
                         IconButton(onClick = {
                             player.seekTo((player.currentPosition - seekSeconds * 1000).coerceAtLeast(0))
                             controlsInteraction++
-                        }) { Icon(Icons.Default.Replay10, "Seek backward", tint = foreground) }
-                        IconButton(onClick = { player.seekToPreviousMediaItem(); controlsInteraction++ }) { Icon(Icons.Default.SkipPrevious, "Previous file", tint = foreground) }
+                        }) { Icon(Icons.Default.Replay10, "Seek backward", tint = Color.White) }
+                        IconButton(onClick = { player.seekToPreviousMediaItem(); controlsInteraction++ }) { Icon(Icons.Default.SkipPrevious, "Previous file", tint = Color.White) }
                         IconButton(onClick = { if (player.isPlaying) player.pause() else player.play(); controlsInteraction++ }) {
-                            Surface(shape = androidx.compose.foundation.shape.CircleShape, color = Color(0xFF262039)) { Icon(if (playing) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
-                                "Play or pause", Modifier.padding(5.dp).size(54.dp), tint = Color(0xFFB99AFF)) }
+                            Icon(if (playing) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
+                                "Play or pause", Modifier.size(54.dp), tint = Color.White)
                         }
-                        IconButton(onClick = { player.seekToNextMediaItem(); controlsInteraction++ }) { Icon(Icons.Default.SkipNext, "Next file", tint = foreground) }
+                        IconButton(onClick = { player.seekToNextMediaItem(); controlsInteraction++ }) { Icon(Icons.Default.SkipNext, "Next file", tint = Color.White) }
                         IconButton(onClick = { player.seekTo(player.currentPosition + seekSeconds * 1000); controlsInteraction++ }) {
-                            Icon(Icons.Default.Forward10, "Seek forward", tint = foreground)
+                            Icon(Icons.Default.Forward10, "Seek forward", tint = Color.White)
                         }
                         if (activeLayout != "Cinema") TextButton(onClick = {
                             seekSeconds = if (seekSeconds == 10L) 30L else 10L
