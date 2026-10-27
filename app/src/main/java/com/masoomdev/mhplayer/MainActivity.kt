@@ -746,7 +746,7 @@ private fun PlayerApp(activity: MainActivity, initialUri: Uri?) {
                     Text(
                         when (infoPage) {
                             "About" -> """MH Player
-Version ${context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "Unknown"}
+Version ${context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "Unknown"} (Build ${context.packageManager.getPackageInfo(context.packageName, 0).versionCode})
 
 Developed by MasoomDev.
 
@@ -754,9 +754,11 @@ An audio and video player for local media files and supported network streams.
 
 Features include folders, playlists, playback resume, audio tracks, external subtitles, equalizer, gestures, Picture-in-Picture and optional background playback.
 
+Updates are checked through Google Play only. When an update is available, MH Player may show an in-app prompt and a notification if allowed.
+
 No account or sign-in is required."""
                             "Privacy Policy" -> """MH Player Privacy Policy
-Last updated: 18 October 2026
+Last updated: 27 October 2026
 
 MH Player is a media player developed by MasoomDev for local media and user-provided network streams.
 
@@ -768,7 +770,9 @@ Local data: Playback positions, equalizer settings and player preferences are sa
 
 Data collection: The current app does not contain advertising SDKs, analytics SDKs, account registration or cloud syncing. The app does not intentionally transmit personal data to the developer.
 
-Permissions: Audio and video access permissions are used for browsing and playing local files. Android audio settings access is used for audio effects.
+Permissions: Audio and video access permissions are used for browsing and playing local files. Android audio settings access is used for audio effects. Notification permission, if granted, is used for playback controls and app update alerts.
+
+App updates: MH Player checks update availability through Google Play services, which may communicate with Google under its privacy practices. GitHub is not queried for updates.
 
 Children: MH Player is a general-purpose local media player and does not provide child-directed online services.
 
@@ -776,13 +780,15 @@ Changes: This policy may be updated if app functionality changes. A public versi
 
 Contact: Please use the support contact provided on the developer's website or Google Play listing."""
                             "Terms & Conditions" -> """MH Player Terms & Conditions
-Last updated: 18 October 2026
+Last updated: 27 October 2026
 
 MH Player is provided as a media playback utility for local files and supported user-provided streams.
 
 You are responsible for ensuring that you have the right to access and play your media files. MH Player does not supply, host or distribute video or audio content.
 
 Media format support depends on your device and Android decoding capabilities. Playback features and audio effects may vary by device.
+
+Updates are provided through Google Play. Users can choose to update or defer.
 
 The app is provided as-is to the extent permitted by applicable law. Nothing in these terms excludes rights that cannot legally be excluded.
 
@@ -794,6 +800,7 @@ MH Player uses open-source components including:
 AndroidX Media3 / ExoPlayer — Apache License 2.0
 AndroidX libraries and Jetpack Compose — Apache License 2.0
 Kotlin — Apache License 2.0
+Google Play In-App Updates SDK — Google Play SDK terms
 
 Copyright and license notices for dependencies remain with their respective owners.
 
@@ -979,7 +986,7 @@ Full license texts and dependency notices should be made available on the develo
                         HorizontalDivider(Modifier.padding(horizontal = 14.dp))
                         SettingsNavRow(Icons.Default.Info, "About MH Player", "Version and developer information", purple) { infoPage = "About" }
                         SettingsNavRow(Icons.Default.PrivacyTip, "Privacy Policy", "How MH Player handles your data", purple) {
-                            try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://masoomdev-website.vercel.app/apps/mh-player/privacy/"))) } catch (_: Exception) { infoPage = "Privacy Policy" }
+                            infoPage = "Privacy Policy"
                         }
                         SettingsNavRow(Icons.Default.Description, "Terms & Conditions", null, purple) { infoPage = "Terms & Conditions" }
                         SettingsNavRow(Icons.Default.Code, "Open Source Licenses", null, purple) { infoPage = "Open Source Licenses" }
