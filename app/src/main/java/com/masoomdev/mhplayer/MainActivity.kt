@@ -1247,6 +1247,7 @@ Full license texts and dependency notices should be made available on the develo
                 }
                 if (!pipActive && !locked && (controlsVisible || audioMode)) Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                        .navigationBarsPadding()
                         .background(Color.Transparent).padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -1298,7 +1299,7 @@ Full license texts and dependency notices should be made available on the develo
                         }) { Text("${seekSeconds}s") }
                     }
                 } else if (!pipActive && locked) Box(
-                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(14.dp),
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().padding(14.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     TextButton(onClick = { locked = false; controlsVisible = true; controlsInteraction++ }) {
